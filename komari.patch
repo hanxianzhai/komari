@@ -1,0 +1,2241 @@
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/AdminAuthMiddleware.go komari-all/komari/api/AdminAuthMiddleware.go
+--- code/komari/api/AdminAuthMiddleware.go	2025-11-08 15:05:28
++++ komari-all/komari/api/AdminAuthMiddleware.go	2025-11-08 15:07:19
+@@ -3,7 +3,7 @@
+ import (
+ 	"net/http"
+ 
+-	"github.com/komari-monitor/komari/database/accounts"
++	"github.com/hanxianzhai/komari/database/accounts"
+ 
+ 	"github.com/gin-gonic/gin"
+ )
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/Common.go komari-all/komari/api/Common.go
+--- code/komari/api/Common.go	2025-11-08 15:05:28
++++ komari-all/komari/api/Common.go	2025-11-08 15:07:19
+@@ -8,15 +8,15 @@
+ 
+ 	"github.com/gin-gonic/gin"
+ 	"github.com/gorilla/websocket"
+-	"github.com/komari-monitor/komari/common"
++	"github.com/hanxianzhai/komari/common"
+ 	"github.com/patrickmn/go-cache"
+ 
+ 	"strconv"
+ 
+-	"github.com/komari-monitor/komari/database/config"
+-	"github.com/komari-monitor/komari/database/dbcore"
+-	"github.com/komari-monitor/komari/database/models"
+-	"github.com/komari-monitor/komari/utils"
++	"github.com/hanxianzhai/komari/database/config"
++	"github.com/hanxianzhai/komari/database/dbcore"
++	"github.com/hanxianzhai/komari/database/models"
++	"github.com/hanxianzhai/komari/utils"
+ )
+ 
+ var (
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/PrivateSiteMiddleware.go komari-all/komari/api/PrivateSiteMiddleware.go
+--- code/komari/api/PrivateSiteMiddleware.go	2025-11-08 15:05:28
++++ komari-all/komari/api/PrivateSiteMiddleware.go	2025-11-08 15:07:19
+@@ -3,8 +3,8 @@
+ import (
+ 	"net/http"
+ 
+-	"github.com/komari-monitor/komari/database/accounts"
+-	"github.com/komari-monitor/komari/database/config"
++	"github.com/hanxianzhai/komari/database/accounts"
++	"github.com/hanxianzhai/komari/database/config"
+ 
+ 	"github.com/gin-gonic/gin"
+ )
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/TokenAuthMiddleware.go komari-all/komari/api/TokenAuthMiddleware.go
+--- code/komari/api/TokenAuthMiddleware.go	2025-11-08 15:05:28
++++ komari-all/komari/api/TokenAuthMiddleware.go	2025-11-08 15:07:19
+@@ -7,7 +7,7 @@
+ 	"io"
+ 	"net/http"
+ 
+-	"github.com/komari-monitor/komari/database/clients"
++	"github.com/hanxianzhai/komari/database/clients"
+ 	"gorm.io/gorm"
+ 
+ 	"github.com/gin-gonic/gin"
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/admin/2fa.go komari-all/komari/api/admin/2fa.go
+--- code/komari/api/admin/2fa.go	2025-11-08 15:05:28
++++ komari-all/komari/api/admin/2fa.go	2025-11-08 15:07:19
+@@ -4,8 +4,8 @@
+ 	"image/png"
+ 
+ 	"github.com/gin-gonic/gin"
+-	"github.com/komari-monitor/komari/api"
+-	"github.com/komari-monitor/komari/database/accounts"
++	"github.com/hanxianzhai/komari/api"
++	"github.com/hanxianzhai/komari/database/accounts"
+ 	"github.com/pquerna/otp/totp"
+ )
+ 
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/admin/client.go komari-all/komari/api/admin/client.go
+--- code/komari/api/admin/client.go	2025-11-08 15:05:28
++++ komari-all/komari/api/admin/client.go	2025-11-08 15:07:19
+@@ -4,17 +4,19 @@
+ 	"net/http"
+ 
+ 	"github.com/gin-gonic/gin"
+-	"github.com/komari-monitor/komari/database/auditlog"
+-	"github.com/komari-monitor/komari/database/clients"
+-	"github.com/komari-monitor/komari/database/records"
+-	"github.com/komari-monitor/komari/ws"
++	"github.com/hanxianzhai/komari/database/auditlog"
++	"github.com/hanxianzhai/komari/database/clients"
++	"github.com/hanxianzhai/komari/database/records"
++	"github.com/hanxianzhai/komari/ws"
+ )
+ 
+ func AddClient(c *gin.Context) {
+ 	var req struct {
+ 		Name string `json:"name"`
++		UUID string `json:"uuid"` // 可选的自定义UUID
+ 	}
+ 	if err := c.ShouldBindJSON(&req); err != nil || req.Name == "" {
++		// 如果没有提供正确的JSON或名称为空，创建默认客户端
+ 		uuid, token, err := clients.CreateClient()
+ 		if err != nil {
+ 			c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
+@@ -23,7 +25,19 @@
+ 		c.JSON(http.StatusOK, gin.H{"status": "success", "uuid": uuid, "token": token})
+ 		return
+ 	}
+-	uuid, token, err := clients.CreateClientWithName(req.Name)
++	
++	var uuid, token string
++	var err error
++	
++	// 检查是否提供了自定义UUID
++	if req.UUID != "" {
++		// 使用自定义UUID创建客户端
++		uuid, token, err = clients.CreateClientWithUUID(req.Name, req.UUID)
++	} else {
++		// 使用默认方法创建客户端
++		uuid, token, err = clients.CreateClientWithName(req.Name)
++	}
++	
+ 	if err != nil {
+ 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
+ 		return
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/admin/client_weight.go komari-all/komari/api/admin/client_weight.go
+--- code/komari/api/admin/client_weight.go	2025-11-08 15:05:28
++++ komari-all/komari/api/admin/client_weight.go	2025-11-08 15:07:19
+@@ -2,10 +2,10 @@
+ 
+ import (
+ 	"github.com/gin-gonic/gin"
+-	"github.com/komari-monitor/komari/api"
+-	"github.com/komari-monitor/komari/database/auditlog"
+-	"github.com/komari-monitor/komari/database/dbcore"
+-	"github.com/komari-monitor/komari/database/models"
++	"github.com/hanxianzhai/komari/api"
++	"github.com/hanxianzhai/komari/database/auditlog"
++	"github.com/hanxianzhai/komari/database/dbcore"
++	"github.com/hanxianzhai/komari/database/models"
+ )
+ 
+ func OrderWeight(c *gin.Context) {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/admin/clipboard/clipboard.go komari-all/komari/api/admin/clipboard/clipboard.go
+--- code/komari/api/admin/clipboard/clipboard.go	2025-11-08 15:05:28
++++ komari-all/komari/api/admin/clipboard/clipboard.go	2025-11-08 15:07:19
+@@ -5,10 +5,10 @@
+ 	"strconv"
+ 
+ 	"github.com/gin-gonic/gin"
+-	"github.com/komari-monitor/komari/api"
+-	"github.com/komari-monitor/komari/database/auditlog"
+-	clipboardDB "github.com/komari-monitor/komari/database/clipboard"
+-	"github.com/komari-monitor/komari/database/models"
++	"github.com/hanxianzhai/komari/api"
++	"github.com/hanxianzhai/komari/database/auditlog"
++	clipboardDB "github.com/hanxianzhai/komari/database/clipboard"
++	"github.com/hanxianzhai/komari/database/models"
+ )
+ 
+ // GetClipboard retrieves a clipboard entry by ID
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/admin/download.go komari-all/komari/api/admin/download.go
+--- code/komari/api/admin/download.go	2025-11-08 15:05:28
++++ komari-all/komari/api/admin/download.go	2025-11-08 15:07:19
+@@ -11,9 +11,9 @@
+ 	"time"
+ 
+ 	"github.com/gin-gonic/gin"
+-	"github.com/komari-monitor/komari/api"
+-	"github.com/komari-monitor/komari/cmd/flags"
+-	"github.com/komari-monitor/komari/database/dbcore"
++	"github.com/hanxianzhai/komari/api"
++	"github.com/hanxianzhai/komari/cmd/flags"
++	"github.com/hanxianzhai/komari/database/dbcore"
+ )
+ 
+ // copyFile 复制单个文件到目标路径（会确保父目录存在）
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/admin/exec.go komari-all/komari/api/admin/exec.go
+--- code/komari/api/admin/exec.go	2025-11-08 15:05:28
++++ komari-all/komari/api/admin/exec.go	2025-11-08 15:07:19
+@@ -6,12 +6,12 @@
+ 
+ 	"github.com/gin-gonic/gin"
+ 	"github.com/gorilla/websocket"
+-	"github.com/komari-monitor/komari/api"
+-	"github.com/komari-monitor/komari/database/auditlog"
+-	"github.com/komari-monitor/komari/database/models"
+-	"github.com/komari-monitor/komari/database/tasks"
+-	"github.com/komari-monitor/komari/utils"
+-	"github.com/komari-monitor/komari/ws"
++	"github.com/hanxianzhai/komari/api"
++	"github.com/hanxianzhai/komari/database/auditlog"
++	"github.com/hanxianzhai/komari/database/models"
++	"github.com/hanxianzhai/komari/database/tasks"
++	"github.com/hanxianzhai/komari/utils"
++	"github.com/hanxianzhai/komari/ws"
+ )
+ 
+ // 接受数据类型：
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/admin/log/log.go komari-all/komari/api/admin/log/log.go
+--- code/komari/api/admin/log/log.go	2025-11-08 15:05:28
++++ komari-all/komari/api/admin/log/log.go	2025-11-08 15:07:19
+@@ -4,9 +4,9 @@
+ 	"strconv"
+ 
+ 	"github.com/gin-gonic/gin"
+-	"github.com/komari-monitor/komari/api"
+-	"github.com/komari-monitor/komari/database/dbcore"
+-	"github.com/komari-monitor/komari/database/models"
++	"github.com/hanxianzhai/komari/api"
++	"github.com/hanxianzhai/komari/database/dbcore"
++	"github.com/hanxianzhai/komari/database/models"
+ )
+ 
+ func GetLogs(c *gin.Context) {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/admin/messageSender.go komari-all/komari/api/admin/messageSender.go
+--- code/komari/api/admin/messageSender.go	2025-11-08 15:05:28
++++ komari-all/komari/api/admin/messageSender.go	2025-11-08 15:07:19
+@@ -2,12 +2,12 @@
+ 
+ import (
+ 	"github.com/gin-gonic/gin"
+-	"github.com/komari-monitor/komari/api"
+-	"github.com/komari-monitor/komari/database"
+-	"github.com/komari-monitor/komari/database/config"
+-	"github.com/komari-monitor/komari/database/models"
+-	"github.com/komari-monitor/komari/utils/messageSender"
+-	"github.com/komari-monitor/komari/utils/messageSender/factory"
++	"github.com/hanxianzhai/komari/api"
++	"github.com/hanxianzhai/komari/database"
++	"github.com/hanxianzhai/komari/database/config"
++	"github.com/hanxianzhai/komari/database/models"
++	"github.com/hanxianzhai/komari/utils/messageSender"
++	"github.com/hanxianzhai/komari/utils/messageSender/factory"
+ )
+ 
+ func GetMessageSenderProvider(c *gin.Context) {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/admin/notification/load.go komari-all/komari/api/admin/notification/load.go
+--- code/komari/api/admin/notification/load.go	2025-11-08 15:05:28
++++ komari-all/komari/api/admin/notification/load.go	2025-11-08 15:07:19
+@@ -4,9 +4,9 @@
+ 	"net/http"
+ 
+ 	"github.com/gin-gonic/gin"
+-	"github.com/komari-monitor/komari/api"
+-	"github.com/komari-monitor/komari/database/models"
+-	"github.com/komari-monitor/komari/database/notification"
++	"github.com/hanxianzhai/komari/api"
++	"github.com/hanxianzhai/komari/database/models"
++	"github.com/hanxianzhai/komari/database/notification"
+ )
+ 
+ // POST body: clients []string, name string, metric string, threshold float32, ratio float32, interval int
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/admin/notification/offline.go komari-all/komari/api/admin/notification/offline.go
+--- code/komari/api/admin/notification/offline.go	2025-11-08 15:05:28
++++ komari-all/komari/api/admin/notification/offline.go	2025-11-08 15:07:19
+@@ -2,9 +2,9 @@
+ 
+ import (
+ 	"github.com/gin-gonic/gin"
+-	"github.com/komari-monitor/komari/api"
+-	"github.com/komari-monitor/komari/database/dbcore"
+-	"github.com/komari-monitor/komari/database/models"
++	"github.com/hanxianzhai/komari/api"
++	"github.com/hanxianzhai/komari/database/dbcore"
++	"github.com/hanxianzhai/komari/database/models"
+ 	"gorm.io/gorm/clause"
+ )
+ 
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/admin/oauth.go komari-all/komari/api/admin/oauth.go
+--- code/komari/api/admin/oauth.go	2025-11-08 15:05:28
++++ komari-all/komari/api/admin/oauth.go	2025-11-08 15:07:19
+@@ -2,13 +2,13 @@
+ 
+ import (
+ 	"github.com/gin-gonic/gin"
+-	"github.com/komari-monitor/komari/api"
+-	"github.com/komari-monitor/komari/database"
+-	"github.com/komari-monitor/komari/database/accounts"
+-	"github.com/komari-monitor/komari/database/config"
+-	"github.com/komari-monitor/komari/database/models"
+-	"github.com/komari-monitor/komari/utils/oauth"
+-	"github.com/komari-monitor/komari/utils/oauth/factory"
++	"github.com/hanxianzhai/komari/api"
++	"github.com/hanxianzhai/komari/database"
++	"github.com/hanxianzhai/komari/database/accounts"
++	"github.com/hanxianzhai/komari/database/config"
++	"github.com/hanxianzhai/komari/database/models"
++	"github.com/hanxianzhai/komari/utils/oauth"
++	"github.com/hanxianzhai/komari/utils/oauth/factory"
+ )
+ 
+ func BindingExternalAccount(c *gin.Context) {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/admin/ping.go komari-all/komari/api/admin/ping.go
+--- code/komari/api/admin/ping.go	2025-11-08 15:05:28
++++ komari-all/komari/api/admin/ping.go	2025-11-08 15:07:19
+@@ -4,9 +4,9 @@
+ 	"net/http"
+ 
+ 	"github.com/gin-gonic/gin"
+-	"github.com/komari-monitor/komari/api"
+-	"github.com/komari-monitor/komari/database/models"
+-	"github.com/komari-monitor/komari/database/tasks"
++	"github.com/hanxianzhai/komari/api"
++	"github.com/hanxianzhai/komari/database/models"
++	"github.com/hanxianzhai/komari/database/tasks"
+ )
+ 
+ // POST body: clients []string, target, task_type string, interval int
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/admin/sessions.go komari-all/komari/api/admin/sessions.go
+--- code/komari/api/admin/sessions.go	2025-11-08 15:05:28
++++ komari-all/komari/api/admin/sessions.go	2025-11-08 15:07:19
+@@ -1,9 +1,9 @@
+ package admin
+ 
+ import (
+-	"github.com/komari-monitor/komari/api"
+-	"github.com/komari-monitor/komari/database/accounts"
+-	"github.com/komari-monitor/komari/database/auditlog"
++	"github.com/hanxianzhai/komari/api"
++	"github.com/hanxianzhai/komari/database/accounts"
++	"github.com/hanxianzhai/komari/database/auditlog"
+ 
+ 	"github.com/gin-gonic/gin"
+ )
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/admin/settings.go komari-all/komari/api/admin/settings.go
+--- code/komari/api/admin/settings.go	2025-11-08 15:05:28
++++ komari-all/komari/api/admin/settings.go	2025-11-08 15:07:19
+@@ -3,12 +3,12 @@
+ import (
+ 	"database/sql"
+ 
+-	"github.com/komari-monitor/komari/api"
+-	"github.com/komari-monitor/komari/database/auditlog"
+-	"github.com/komari-monitor/komari/database/config"
+-	"github.com/komari-monitor/komari/database/models"
+-	"github.com/komari-monitor/komari/database/records"
+-	"github.com/komari-monitor/komari/database/tasks"
++	"github.com/hanxianzhai/komari/api"
++	"github.com/hanxianzhai/komari/database/auditlog"
++	"github.com/hanxianzhai/komari/database/config"
++	"github.com/hanxianzhai/komari/database/models"
++	"github.com/hanxianzhai/komari/database/records"
++	"github.com/hanxianzhai/komari/database/tasks"
+ 
+ 	"github.com/gin-gonic/gin"
+ )
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/admin/task.go komari-all/komari/api/admin/task.go
+--- code/komari/api/admin/task.go	2025-11-08 15:05:28
++++ komari-all/komari/api/admin/task.go	2025-11-08 15:07:19
+@@ -2,8 +2,8 @@
+ 
+ import (
+ 	"github.com/gin-gonic/gin"
+-	"github.com/komari-monitor/komari/api"
+-	"github.com/komari-monitor/komari/database/tasks"
++	"github.com/hanxianzhai/komari/api"
++	"github.com/hanxianzhai/komari/database/tasks"
+ )
+ 
+ func GetTasks(c *gin.Context) {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/admin/test/test.go komari-all/komari/api/admin/test/test.go
+--- code/komari/api/admin/test/test.go	2025-11-08 15:05:28
++++ komari-all/komari/api/admin/test/test.go	2025-11-08 15:07:19
+@@ -4,11 +4,11 @@
+ 	"net"
+ 
+ 	"github.com/gin-gonic/gin"
+-	"github.com/komari-monitor/komari/api"
+-	"github.com/komari-monitor/komari/database/config"
+-	"github.com/komari-monitor/komari/database/models"
+-	"github.com/komari-monitor/komari/utils/geoip"
+-	"github.com/komari-monitor/komari/utils/messageSender"
++	"github.com/hanxianzhai/komari/api"
++	"github.com/hanxianzhai/komari/database/config"
++	"github.com/hanxianzhai/komari/database/models"
++	"github.com/hanxianzhai/komari/utils/geoip"
++	"github.com/hanxianzhai/komari/utils/messageSender"
+ )
+ 
+ func TestSendMessage(c *gin.Context) {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/admin/theme.go komari-all/komari/api/admin/theme.go
+--- code/komari/api/admin/theme.go	2025-11-08 15:05:28
++++ komari-all/komari/api/admin/theme.go	2025-11-08 15:07:19
+@@ -13,10 +13,10 @@
+ 	"strings"
+ 
+ 	"github.com/gin-gonic/gin"
+-	"github.com/komari-monitor/komari/api"
+-	"github.com/komari-monitor/komari/database/config"
+-	"github.com/komari-monitor/komari/database/dbcore"
+-	"github.com/komari-monitor/komari/database/models"
++	"github.com/hanxianzhai/komari/api"
++	"github.com/hanxianzhai/komari/database/config"
++	"github.com/hanxianzhai/komari/database/dbcore"
++	"github.com/hanxianzhai/komari/database/models"
+ )
+ 
+ // UploadTheme 上传主题
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/admin/update/favicon.go komari-all/komari/api/admin/update/favicon.go
+--- code/komari/api/admin/update/favicon.go	2025-11-08 15:05:28
++++ komari-all/komari/api/admin/update/favicon.go	2025-11-08 15:07:19
+@@ -7,8 +7,8 @@
+ 	"strings"
+ 
+ 	"github.com/gin-gonic/gin"
+-	"github.com/komari-monitor/komari/api"
+-	"github.com/komari-monitor/komari/database/auditlog"
++	"github.com/hanxianzhai/komari/api"
++	"github.com/hanxianzhai/komari/database/auditlog"
+ )
+ 
+ func UploadFavicon(c *gin.Context) {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/admin/update/geoip.go komari-all/komari/api/admin/update/geoip.go
+--- code/komari/api/admin/update/geoip.go	2025-11-08 15:05:28
++++ komari-all/komari/api/admin/update/geoip.go	2025-11-08 15:07:19
+@@ -2,9 +2,9 @@
+ 
+ import (
+ 	"github.com/gin-gonic/gin"
+-	"github.com/komari-monitor/komari/api"
+-	"github.com/komari-monitor/komari/database/auditlog"
+-	"github.com/komari-monitor/komari/utils/geoip"
++	"github.com/hanxianzhai/komari/api"
++	"github.com/hanxianzhai/komari/database/auditlog"
++	"github.com/hanxianzhai/komari/utils/geoip"
+ )
+ 
+ func UpdateMmdbGeoIP(c *gin.Context) {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/admin/update/user.go komari-all/komari/api/admin/update/user.go
+--- code/komari/api/admin/update/user.go	2025-11-08 15:05:28
++++ komari-all/komari/api/admin/update/user.go	2025-11-08 15:07:19
+@@ -2,9 +2,9 @@
+ 
+ import (
+ 	"github.com/gin-gonic/gin"
+-	"github.com/komari-monitor/komari/api"
+-	"github.com/komari-monitor/komari/database/accounts"
+-	"github.com/komari-monitor/komari/database/auditlog"
++	"github.com/hanxianzhai/komari/api"
++	"github.com/hanxianzhai/komari/database/accounts"
++	"github.com/hanxianzhai/komari/database/auditlog"
+ )
+ 
+ func UpdateUser(c *gin.Context) {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/admin/upload.go komari-all/komari/api/admin/upload.go
+--- code/komari/api/admin/upload.go	2025-11-08 15:05:28
++++ komari-all/komari/api/admin/upload.go	2025-11-08 15:07:19
+@@ -13,7 +13,7 @@
+ 	"time"
+ 
+ 	"github.com/gin-gonic/gin"
+-	"github.com/komari-monitor/komari/api"
++	"github.com/hanxianzhai/komari/api"
+ )
+ 
+ // 只有一个备份恢复操作在进行
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/client/autoDiscovery.go komari-all/komari/api/client/autoDiscovery.go
+--- code/komari/api/client/autoDiscovery.go	2025-11-08 15:05:28
++++ komari-all/komari/api/client/autoDiscovery.go	2025-11-08 15:07:19
+@@ -2,10 +2,10 @@
+ 
+ import (
+ 	"github.com/gin-gonic/gin"
+-	"github.com/komari-monitor/komari/api"
+-	"github.com/komari-monitor/komari/database/clients"
+-	"github.com/komari-monitor/komari/database/config"
+-	"github.com/komari-monitor/komari/utils"
++	"github.com/hanxianzhai/komari/api"
++	"github.com/hanxianzhai/komari/database/clients"
++	"github.com/hanxianzhai/komari/database/config"
++	"github.com/hanxianzhai/komari/utils"
+ )
+ 
+ func RegisterClient(c *gin.Context) {
+@@ -31,8 +31,18 @@
+ 	if name == "" {
+ 		name = utils.GenerateRandomString(8)
+ 	}
+-	name = "Auto-" + name
+-	uuid, token, err := clients.CreateClientWithName(name)
++	
++	// 检查是否提供了自定义UUID
++	customUUID := c.Query("uuid")
++	var uuid, token string
++	if customUUID != "" {
++		// 使用自定义UUID创建客户端
++		uuid, token, err = clients.CreateClientWithUUID(name, customUUID)
++	} else {
++		// 使用默认方法创建客户端
++		uuid, token, err = clients.CreateClientWithName(name)
++	}
++	
+ 	if err != nil {
+ 		api.RespondError(c, 500, "Failed to create client: "+err.Error())
+ 		return
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/client/report.go komari-all/komari/api/client/report.go
+--- code/komari/api/client/report.go	2025-11-08 15:05:28
++++ komari-all/komari/api/client/report.go	2025-11-08 15:07:19
+@@ -12,13 +12,13 @@
+ 
+ 	"github.com/gin-gonic/gin"
+ 	"github.com/gorilla/websocket"
+-	"github.com/komari-monitor/komari/api"
+-	"github.com/komari-monitor/komari/common"
+-	"github.com/komari-monitor/komari/database/clients"
+-	"github.com/komari-monitor/komari/database/models"
+-	"github.com/komari-monitor/komari/database/tasks"
+-	"github.com/komari-monitor/komari/utils/notifier"
+-	"github.com/komari-monitor/komari/ws"
++	"github.com/hanxianzhai/komari/api"
++	"github.com/hanxianzhai/komari/common"
++	"github.com/hanxianzhai/komari/database/clients"
++	"github.com/hanxianzhai/komari/database/models"
++	"github.com/hanxianzhai/komari/database/tasks"
++	"github.com/hanxianzhai/komari/utils/notifier"
++	"github.com/hanxianzhai/komari/ws"
+ 	"github.com/patrickmn/go-cache"
+ )
+ 
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/client/task.go komari-all/komari/api/client/task.go
+--- code/komari/api/client/task.go	2025-11-08 15:05:28
++++ komari-all/komari/api/client/task.go	2025-11-08 15:07:19
+@@ -4,9 +4,9 @@
+ 	"time"
+ 
+ 	"github.com/gin-gonic/gin"
+-	"github.com/komari-monitor/komari/database/clients"
+-	"github.com/komari-monitor/komari/database/models"
+-	"github.com/komari-monitor/komari/database/tasks"
++	"github.com/hanxianzhai/komari/database/clients"
++	"github.com/hanxianzhai/komari/database/models"
++	"github.com/hanxianzhai/komari/database/tasks"
+ )
+ 
+ func TaskResult(c *gin.Context) {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/client/terminal.go komari-all/komari/api/client/terminal.go
+--- code/komari/api/client/terminal.go	2025-11-08 15:05:28
++++ komari-all/komari/api/client/terminal.go	2025-11-08 15:07:19
+@@ -5,7 +5,7 @@
+ 
+ 	"github.com/gin-gonic/gin"
+ 	"github.com/gorilla/websocket"
+-	"github.com/komari-monitor/komari/api"
++	"github.com/hanxianzhai/komari/api"
+ )
+ 
+ func EstablishConnection(c *gin.Context) {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/client/uploadBasicInfo.go komari-all/komari/api/client/uploadBasicInfo.go
+--- code/komari/api/client/uploadBasicInfo.go	2025-11-08 15:05:28
++++ komari-all/komari/api/client/uploadBasicInfo.go	2025-11-08 15:07:19
+@@ -3,9 +3,9 @@
+ import (
+ 	"net"
+ 
+-	"github.com/komari-monitor/komari/database/clients"
+-	"github.com/komari-monitor/komari/database/config"
+-	"github.com/komari-monitor/komari/utils/geoip"
++	"github.com/hanxianzhai/komari/database/clients"
++	"github.com/hanxianzhai/komari/database/config"
++	"github.com/hanxianzhai/komari/utils/geoip"
+ 
+ 	"github.com/gin-gonic/gin"
+ )
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/jsonRpc/JsonRpc.go komari-all/komari/api/jsonRpc/JsonRpc.go
+--- code/komari/api/jsonRpc/JsonRpc.go	2025-11-08 15:05:28
++++ komari-all/komari/api/jsonRpc/JsonRpc.go	2025-11-08 15:07:19
+@@ -11,12 +11,12 @@
+ 	"sync"
+ 
+ 	"github.com/gin-gonic/gin"
+-	"github.com/komari-monitor/komari/database/accounts"
+-	"github.com/komari-monitor/komari/database/clients"
+-	"github.com/komari-monitor/komari/database/config"
+-	"github.com/komari-monitor/komari/database/models"
+-	"github.com/komari-monitor/komari/utils/rpc"
+-	"github.com/komari-monitor/komari/ws"
++	"github.com/hanxianzhai/komari/database/accounts"
++	"github.com/hanxianzhai/komari/database/clients"
++	"github.com/hanxianzhai/komari/database/config"
++	"github.com/hanxianzhai/komari/database/models"
++	"github.com/hanxianzhai/komari/utils/rpc"
++	"github.com/hanxianzhai/komari/ws"
+ )
+ 
+ // Json Rpc2 over websocket, /api/rpc2
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/jsonRpc/common.go komari-all/komari/api/jsonRpc/common.go
+--- code/komari/api/jsonRpc/common.go	2025-11-08 15:05:28
++++ komari-all/komari/api/jsonRpc/common.go	2025-11-08 15:07:19
+@@ -8,17 +8,17 @@
+ 	"strings"
+ 	"time"
+ 
+-	"github.com/komari-monitor/komari/api"
+-	"github.com/komari-monitor/komari/common"
+-	"github.com/komari-monitor/komari/database"
+-	"github.com/komari-monitor/komari/database/clients"
+-	"github.com/komari-monitor/komari/database/config"
+-	"github.com/komari-monitor/komari/database/dbcore"
+-	"github.com/komari-monitor/komari/database/models"
+-	"github.com/komari-monitor/komari/database/tasks"
+-	"github.com/komari-monitor/komari/utils"
+-	"github.com/komari-monitor/komari/utils/rpc"
+-	"github.com/komari-monitor/komari/ws"
++	"github.com/hanxianzhai/komari/api"
++	"github.com/hanxianzhai/komari/common"
++	"github.com/hanxianzhai/komari/database"
++	"github.com/hanxianzhai/komari/database/clients"
++	"github.com/hanxianzhai/komari/database/config"
++	"github.com/hanxianzhai/komari/database/dbcore"
++	"github.com/hanxianzhai/komari/database/models"
++	"github.com/hanxianzhai/komari/database/tasks"
++	"github.com/hanxianzhai/komari/utils"
++	"github.com/hanxianzhai/komari/utils/rpc"
++	"github.com/hanxianzhai/komari/ws"
+ 
+ 	cache "github.com/patrickmn/go-cache"
+ )
+@@ -244,9 +244,12 @@
+ 				if node.IPv6 != "" {
+ 					node.IPv6 = strings.Split(node.IPv6, ":")[0] + ":*:*:*:*:*:*:*"
+ 				}
++				// Wt0IP 保持不变，用于显示内网 IP
+ 			} else {
+ 				node.IPv4 = ""
+ 				node.IPv6 = ""
++				// 非管理员用户也显示内网IP
++				// node.Wt0IP = ""
+ 			}
+ 
+ 			node.Remark = ""
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/jsonRpc/common.record.go komari-all/komari/api/jsonRpc/common.record.go
+--- code/komari/api/jsonRpc/common.record.go	2025-11-08 15:05:28
++++ komari-all/komari/api/jsonRpc/common.record.go	2025-11-08 15:07:19
+@@ -7,12 +7,12 @@
+ 	"sort"
+ 	"time"
+ 
+-	"github.com/komari-monitor/komari/database/clients"
+-	"github.com/komari-monitor/komari/database/dbcore"
+-	"github.com/komari-monitor/komari/database/models"
+-	recordsdb "github.com/komari-monitor/komari/database/records"
+-	"github.com/komari-monitor/komari/database/tasks"
+-	"github.com/komari-monitor/komari/utils/rpc"
++	"github.com/hanxianzhai/komari/database/clients"
++	"github.com/hanxianzhai/komari/database/dbcore"
++	"github.com/hanxianzhai/komari/database/models"
++	recordsdb "github.com/hanxianzhai/komari/database/records"
++	"github.com/hanxianzhai/komari/database/tasks"
++	"github.com/hanxianzhai/komari/utils/rpc"
+ )
+ 
+ func init() {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/latestRecord.go komari-all/komari/api/latestRecord.go
+--- code/komari/api/latestRecord.go	2025-11-08 15:05:28
++++ komari-all/komari/api/latestRecord.go	2025-11-08 15:07:19
+@@ -2,9 +2,9 @@
+ 
+ import (
+ 	"github.com/gin-gonic/gin"
+-	"github.com/komari-monitor/komari/database/accounts"
+-	"github.com/komari-monitor/komari/database/dbcore"
+-	"github.com/komari-monitor/komari/database/models"
++	"github.com/hanxianzhai/komari/database/accounts"
++	"github.com/hanxianzhai/komari/database/dbcore"
++	"github.com/hanxianzhai/komari/database/models"
+ )
+ 
+ func GetClientRecentRecords(c *gin.Context) {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/login.go komari-all/komari/api/login.go
+--- code/komari/api/login.go	2025-11-08 15:05:28
++++ komari-all/komari/api/login.go	2025-11-08 15:07:19
+@@ -5,9 +5,9 @@
+ 	"io"
+ 	"net/http"
+ 
+-	"github.com/komari-monitor/komari/database/accounts"
+-	"github.com/komari-monitor/komari/database/auditlog"
+-	"github.com/komari-monitor/komari/database/config"
++	"github.com/hanxianzhai/komari/database/accounts"
++	"github.com/hanxianzhai/komari/database/auditlog"
++	"github.com/hanxianzhai/komari/database/config"
+ 
+ 	"github.com/gin-gonic/gin"
+ )
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/login_test.go komari-all/komari/api/login_test.go
+--- code/komari/api/login_test.go	2025-11-08 15:05:28
++++ komari-all/komari/api/login_test.go	2025-11-08 15:07:19
+@@ -8,7 +8,7 @@
+ 	"testing"
+ 
+ 	"github.com/gin-gonic/gin"
+-	"github.com/komari-monitor/komari/database/accounts"
++	"github.com/hanxianzhai/komari/database/accounts"
+ 	"github.com/stretchr/testify/assert"
+ )
+ 
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/me.go komari-all/komari/api/me.go
+--- code/komari/api/me.go	2025-11-08 15:05:28
++++ komari-all/komari/api/me.go	2025-11-08 15:07:19
+@@ -1,7 +1,7 @@
+ package api
+ 
+ import (
+-	"github.com/komari-monitor/komari/database/accounts"
++	"github.com/hanxianzhai/komari/database/accounts"
+ 
+ 	"github.com/gin-gonic/gin"
+ )
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/me_test.go komari-all/komari/api/me_test.go
+--- code/komari/api/me_test.go	2025-11-08 15:05:28
++++ komari-all/komari/api/me_test.go	2025-11-08 15:07:19
+@@ -7,7 +7,7 @@
+ 	"testing"
+ 
+ 	"github.com/gin-gonic/gin"
+-	"github.com/komari-monitor/komari/database/accounts"
++	"github.com/hanxianzhai/komari/database/accounts"
+ 	"github.com/stretchr/testify/assert"
+ )
+ 
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/nodes.go komari-all/komari/api/nodes.go
+--- code/komari/api/nodes.go	2025-11-08 15:05:28
++++ komari-all/komari/api/nodes.go	2025-11-08 15:07:19
+@@ -2,8 +2,8 @@
+ 
+ import (
+ 	"github.com/gin-gonic/gin"
+-	"github.com/komari-monitor/komari/database/accounts"
+-	"github.com/komari-monitor/komari/database/clients"
++	"github.com/hanxianzhai/komari/database/accounts"
++	"github.com/hanxianzhai/komari/database/clients"
+ )
+ 
+ func GetNodesInformation(c *gin.Context) {
+@@ -30,6 +30,7 @@
+ 		clientList[i].Remark = "" // 私有备注不展示
+ 		clientList[i].Version = ""
+ 		clientList[i].Token = ""
++		// Wt0IP字段保持不变，用于显示内网IP
+ 		clientList[j] = clientList[i]
+ 		j++
+ 	}
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/oauth.go komari-all/komari/api/oauth.go
+--- code/komari/api/oauth.go	2025-11-08 15:05:28
++++ komari-all/komari/api/oauth.go	2025-11-08 15:07:19
+@@ -5,11 +5,11 @@
+ 	"slices"
+ 
+ 	"github.com/gin-gonic/gin"
+-	"github.com/komari-monitor/komari/database/accounts"
+-	"github.com/komari-monitor/komari/database/auditlog"
+-	"github.com/komari-monitor/komari/database/config"
+-	"github.com/komari-monitor/komari/utils"
+-	"github.com/komari-monitor/komari/utils/oauth"
++	"github.com/hanxianzhai/komari/database/accounts"
++	"github.com/hanxianzhai/komari/database/auditlog"
++	"github.com/hanxianzhai/komari/database/config"
++	"github.com/hanxianzhai/komari/utils"
++	"github.com/hanxianzhai/komari/utils/oauth"
+ )
+ 
+ // /api/oauth
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/public.go komari-all/komari/api/public.go
+--- code/komari/api/public.go	2025-11-08 15:05:28
++++ komari-all/komari/api/public.go	2025-11-08 15:07:19
+@@ -2,7 +2,7 @@
+ 
+ import (
+ 	"github.com/gin-gonic/gin"
+-	"github.com/komari-monitor/komari/database"
++	"github.com/hanxianzhai/komari/database"
+ )
+ 
+ func GetPublicSettings(c *gin.Context) {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/record/record.go komari-all/komari/api/record/record.go
+--- code/komari/api/record/record.go	2025-11-08 15:05:28
++++ komari-all/komari/api/record/record.go	2025-11-08 15:07:19
+@@ -6,12 +6,12 @@
+ 	"time"
+ 
+ 	"github.com/gin-gonic/gin"
+-	"github.com/komari-monitor/komari/api"
+-	"github.com/komari-monitor/komari/database/accounts"
+-	"github.com/komari-monitor/komari/database/dbcore"
+-	"github.com/komari-monitor/komari/database/models"
+-	records "github.com/komari-monitor/komari/database/records"
+-	"github.com/komari-monitor/komari/database/tasks"
++	"github.com/hanxianzhai/komari/api"
++	"github.com/hanxianzhai/komari/database/accounts"
++	"github.com/hanxianzhai/komari/database/dbcore"
++	"github.com/hanxianzhai/komari/database/models"
++	records "github.com/hanxianzhai/komari/database/records"
++	"github.com/hanxianzhai/komari/database/tasks"
+ )
+ 
+ func GetRecordsByUUID(c *gin.Context) {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/task/ping.go komari-all/komari/api/task/ping.go
+--- code/komari/api/task/ping.go	2025-11-08 15:05:28
++++ komari-all/komari/api/task/ping.go	2025-11-08 15:07:19
+@@ -4,8 +4,8 @@
+ 	"net/http"
+ 
+ 	"github.com/gin-gonic/gin"
+-	"github.com/komari-monitor/komari/api"
+-	"github.com/komari-monitor/komari/database/tasks"
++	"github.com/hanxianzhai/komari/api"
++	"github.com/hanxianzhai/komari/database/tasks"
+ )
+ 
+ type PublicPingTask struct {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/terminal.go komari-all/komari/api/terminal.go
+--- code/komari/api/terminal.go	2025-11-08 15:05:28
++++ komari-all/komari/api/terminal.go	2025-11-08 15:07:19
+@@ -7,10 +7,10 @@
+ 
+ 	"github.com/gin-gonic/gin"
+ 	"github.com/gorilla/websocket"
+-	"github.com/komari-monitor/komari/database/auditlog"
+-	"github.com/komari-monitor/komari/database/clients"
+-	"github.com/komari-monitor/komari/utils"
+-	"github.com/komari-monitor/komari/ws"
++	"github.com/hanxianzhai/komari/database/auditlog"
++	"github.com/hanxianzhai/komari/database/clients"
++	"github.com/hanxianzhai/komari/utils"
++	"github.com/hanxianzhai/komari/ws"
+ )
+ 
+ func RequestTerminal(c *gin.Context) {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/api/ws.go komari-all/komari/api/ws.go
+--- code/komari/api/ws.go	2025-11-08 15:05:28
++++ komari-all/komari/api/ws.go	2025-11-08 15:07:19
+@@ -6,12 +6,12 @@
+ 
+ 	"github.com/gin-gonic/gin"
+ 	"github.com/gorilla/websocket"
+-	"github.com/komari-monitor/komari/common"
+-	"github.com/komari-monitor/komari/database/accounts"
+-	"github.com/komari-monitor/komari/database/config"
+-	"github.com/komari-monitor/komari/database/dbcore"
+-	"github.com/komari-monitor/komari/database/models"
+-	"github.com/komari-monitor/komari/ws"
++	"github.com/hanxianzhai/komari/common"
++	"github.com/hanxianzhai/komari/database/accounts"
++	"github.com/hanxianzhai/komari/database/config"
++	"github.com/hanxianzhai/komari/database/dbcore"
++	"github.com/hanxianzhai/komari/database/models"
++	"github.com/hanxianzhai/komari/ws"
+ )
+ 
+ func GetClients(c *gin.Context) {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/cmd/chpasswd.go komari-all/komari/cmd/chpasswd.go
+--- code/komari/cmd/chpasswd.go	2025-11-08 15:05:28
++++ komari-all/komari/cmd/chpasswd.go	2025-11-08 15:07:19
+@@ -3,10 +3,10 @@
+ import (
+ 	"os"
+ 
+-	"github.com/komari-monitor/komari/cmd/flags"
+-	"github.com/komari-monitor/komari/database/accounts"
+-	"github.com/komari-monitor/komari/database/dbcore"
+-	"github.com/komari-monitor/komari/database/models"
++	"github.com/hanxianzhai/komari/cmd/flags"
++	"github.com/hanxianzhai/komari/database/accounts"
++	"github.com/hanxianzhai/komari/database/dbcore"
++	"github.com/hanxianzhai/komari/database/models"
+ 	"github.com/spf13/cobra"
+ )
+ 
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/cmd/disable2FA.go komari-all/komari/cmd/disable2FA.go
+--- code/komari/cmd/disable2FA.go	2025-11-08 15:05:28
++++ komari-all/komari/cmd/disable2FA.go	2025-11-08 15:07:19
+@@ -3,8 +3,8 @@
+ import (
+ 	"os"
+ 
+-	"github.com/komari-monitor/komari/database/dbcore"
+-	"github.com/komari-monitor/komari/database/models"
++	"github.com/hanxianzhai/komari/database/dbcore"
++	"github.com/hanxianzhai/komari/database/models"
+ 	"github.com/spf13/cobra"
+ 	"gorm.io/gorm"
+ )
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/cmd/nezha_compat.go komari-all/komari/cmd/nezha_compat.go
+--- code/komari/cmd/nezha_compat.go	2025-11-08 15:05:28
++++ komari-all/komari/cmd/nezha_compat.go	2025-11-08 15:07:19
+@@ -11,17 +11,17 @@
+ 	"sync"
+ 	"time"
+ 
+-	apiClient "github.com/komari-monitor/komari/api/client"
+-	"github.com/komari-monitor/komari/common"
+-	"github.com/komari-monitor/komari/database/auditlog"
+-	"github.com/komari-monitor/komari/database/config"
+-	"github.com/komari-monitor/komari/database/dbcore"
+-	"github.com/komari-monitor/komari/database/models"
+-	"github.com/komari-monitor/komari/utils/geoip"
+-	"github.com/komari-monitor/komari/utils/notifier"
+-	"github.com/komari-monitor/komari/ws"
++	apiClient "github.com/hanxianzhai/komari/api/client"
++	"github.com/hanxianzhai/komari/common"
++	"github.com/hanxianzhai/komari/database/auditlog"
++	"github.com/hanxianzhai/komari/database/config"
++	"github.com/hanxianzhai/komari/database/dbcore"
++	"github.com/hanxianzhai/komari/database/models"
++	"github.com/hanxianzhai/komari/utils/geoip"
++	"github.com/hanxianzhai/komari/utils/notifier"
++	"github.com/hanxianzhai/komari/ws"
+ 
+-	"github.com/komari-monitor/komari/compat/nezha/proto"
++	"github.com/hanxianzhai/komari/compat/nezha/proto"
+ 	"google.golang.org/grpc"
+ 	"google.golang.org/grpc/keepalive"
+ 	"google.golang.org/grpc/metadata"
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/cmd/permitPasswordLogin.go komari-all/komari/cmd/permitPasswordLogin.go
+--- code/komari/cmd/permitPasswordLogin.go	2025-11-08 15:05:28
++++ komari-all/komari/cmd/permitPasswordLogin.go	2025-11-08 15:07:19
+@@ -3,8 +3,8 @@
+ import (
+ 	"os"
+ 
+-	"github.com/komari-monitor/komari/database/dbcore"
+-	"github.com/komari-monitor/komari/database/models"
++	"github.com/hanxianzhai/komari/database/dbcore"
++	"github.com/hanxianzhai/komari/database/models"
+ 	"github.com/spf13/cobra"
+ 	"gorm.io/gorm"
+ )
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/cmd/root.go komari-all/komari/cmd/root.go
+--- code/komari/cmd/root.go	2025-11-08 15:05:28
++++ komari-all/komari/cmd/root.go	2025-11-08 15:07:19
+@@ -4,7 +4,7 @@
+ 	"fmt"
+ 	"os"
+ 
+-	"github.com/komari-monitor/komari/cmd/flags"
++	"github.com/hanxianzhai/komari/cmd/flags"
+ 
+ 	"github.com/spf13/cobra"
+ )
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/cmd/server.go komari-all/komari/cmd/server.go
+--- code/komari/cmd/server.go	2025-11-08 15:05:28
++++ komari-all/komari/cmd/server.go	2025-11-08 15:07:19
+@@ -12,35 +12,35 @@
+ 	"time"
+ 
+ 	"github.com/gin-gonic/gin"
+-	"github.com/komari-monitor/komari/api"
+-	"github.com/komari-monitor/komari/api/admin"
+-	"github.com/komari-monitor/komari/api/admin/clipboard"
+-	log_api "github.com/komari-monitor/komari/api/admin/log"
+-	"github.com/komari-monitor/komari/api/admin/notification"
+-	"github.com/komari-monitor/komari/api/admin/test"
+-	"github.com/komari-monitor/komari/api/admin/update"
+-	"github.com/komari-monitor/komari/api/client"
+-	"github.com/komari-monitor/komari/api/jsonRpc"
+-	"github.com/komari-monitor/komari/api/record"
+-	"github.com/komari-monitor/komari/api/task"
+-	"github.com/komari-monitor/komari/cmd/flags"
+-	"github.com/komari-monitor/komari/database"
+-	"github.com/komari-monitor/komari/database/accounts"
+-	"github.com/komari-monitor/komari/database/auditlog"
+-	"github.com/komari-monitor/komari/database/config"
+-	"github.com/komari-monitor/komari/database/dbcore"
+-	"github.com/komari-monitor/komari/database/models"
+-	d_notification "github.com/komari-monitor/komari/database/notification"
+-	"github.com/komari-monitor/komari/database/records"
+-	"github.com/komari-monitor/komari/database/tasks"
+-	"github.com/komari-monitor/komari/public"
+-	"github.com/komari-monitor/komari/utils"
+-	"github.com/komari-monitor/komari/utils/cloudflared"
+-	"github.com/komari-monitor/komari/utils/geoip"
+-	logutil "github.com/komari-monitor/komari/utils/log"
+-	"github.com/komari-monitor/komari/utils/messageSender"
+-	"github.com/komari-monitor/komari/utils/notifier"
+-	"github.com/komari-monitor/komari/utils/oauth"
++	"github.com/hanxianzhai/komari/api"
++	"github.com/hanxianzhai/komari/api/admin"
++	"github.com/hanxianzhai/komari/api/admin/clipboard"
++	log_api "github.com/hanxianzhai/komari/api/admin/log"
++	"github.com/hanxianzhai/komari/api/admin/notification"
++	"github.com/hanxianzhai/komari/api/admin/test"
++	"github.com/hanxianzhai/komari/api/admin/update"
++	"github.com/hanxianzhai/komari/api/client"
++	"github.com/hanxianzhai/komari/api/jsonRpc"
++	"github.com/hanxianzhai/komari/api/record"
++	"github.com/hanxianzhai/komari/api/task"
++	"github.com/hanxianzhai/komari/cmd/flags"
++	"github.com/hanxianzhai/komari/database"
++	"github.com/hanxianzhai/komari/database/accounts"
++	"github.com/hanxianzhai/komari/database/auditlog"
++	"github.com/hanxianzhai/komari/database/config"
++	"github.com/hanxianzhai/komari/database/dbcore"
++	"github.com/hanxianzhai/komari/database/models"
++	d_notification "github.com/hanxianzhai/komari/database/notification"
++	"github.com/hanxianzhai/komari/database/records"
++	"github.com/hanxianzhai/komari/database/tasks"
++	"github.com/hanxianzhai/komari/public"
++	"github.com/hanxianzhai/komari/utils"
++	"github.com/hanxianzhai/komari/utils/cloudflared"
++	"github.com/hanxianzhai/komari/utils/geoip"
++	logutil "github.com/hanxianzhai/komari/utils/log"
++	"github.com/hanxianzhai/komari/utils/messageSender"
++	"github.com/hanxianzhai/komari/utils/notifier"
++	"github.com/hanxianzhai/komari/utils/oauth"
+ 	"github.com/spf13/cobra"
+ )
+ 
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/compat/nezha/nezha.proto komari-all/komari/compat/nezha/nezha.proto
+--- code/komari/compat/nezha/nezha.proto	2025-11-08 15:05:28
++++ komari-all/komari/compat/nezha/nezha.proto	2025-11-08 15:07:19
+@@ -1,6 +1,6 @@
+ syntax = "proto3";
+ package proto;
+-option go_package = "github.com/komari-monitor/komari/compat/nezha/proto";
++option go_package = "github.com/hanxianzhai/komari/compat/nezha/proto";
+ 
+ service NezhaService {
+   rpc ReportSystemState(stream State) returns (stream Receipt) {}
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/database/accounts/2fa.go komari-all/komari/database/accounts/2fa.go
+--- code/komari/database/accounts/2fa.go	2025-11-08 15:05:28
++++ komari-all/komari/database/accounts/2fa.go	2025-11-08 15:07:19
+@@ -3,8 +3,8 @@
+ import (
+ 	"image"
+ 
+-	"github.com/komari-monitor/komari/database/dbcore"
+-	"github.com/komari-monitor/komari/database/models"
++	"github.com/hanxianzhai/komari/database/dbcore"
++	"github.com/hanxianzhai/komari/database/models"
+ 	"github.com/pquerna/otp/totp"
+ )
+ 
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/database/accounts/accounts.go komari-all/komari/database/accounts/accounts.go
+--- code/komari/database/accounts/accounts.go	2025-11-08 15:05:28
++++ komari-all/komari/database/accounts/accounts.go	2025-11-08 15:07:19
+@@ -7,9 +7,9 @@
+ 	"os"
+ 	"time"
+ 
+-	"github.com/komari-monitor/komari/database/dbcore"
+-	"github.com/komari-monitor/komari/database/models"
+-	"github.com/komari-monitor/komari/utils"
++	"github.com/hanxianzhai/komari/database/dbcore"
++	"github.com/hanxianzhai/komari/database/models"
++	"github.com/hanxianzhai/komari/utils"
+ 
+ 	"github.com/google/uuid"
+ )
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/database/accounts/sessions.go komari-all/komari/database/accounts/sessions.go
+--- code/komari/database/accounts/sessions.go	2025-11-08 15:05:28
++++ komari-all/komari/database/accounts/sessions.go	2025-11-08 15:07:19
+@@ -6,13 +6,13 @@
+ 	"net"
+ 	"time"
+ 
+-	"github.com/komari-monitor/komari/database/config"
+-	"github.com/komari-monitor/komari/database/dbcore"
+-	"github.com/komari-monitor/komari/database/models"
+-	messageevent "github.com/komari-monitor/komari/database/models/messageEvent"
+-	"github.com/komari-monitor/komari/utils"
+-	"github.com/komari-monitor/komari/utils/geoip"
+-	"github.com/komari-monitor/komari/utils/messageSender"
++	"github.com/hanxianzhai/komari/database/config"
++	"github.com/hanxianzhai/komari/database/dbcore"
++	"github.com/hanxianzhai/komari/database/models"
++	messageevent "github.com/hanxianzhai/komari/database/models/messageEvent"
++	"github.com/hanxianzhai/komari/utils"
++	"github.com/hanxianzhai/komari/utils/geoip"
++	"github.com/hanxianzhai/komari/utils/messageSender"
+ )
+ 
+ // GetAllSessions 获取所有会话
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/database/auditlog/log.go komari-all/komari/database/auditlog/log.go
+--- code/komari/database/auditlog/log.go	2025-11-08 15:05:28
++++ komari-all/komari/database/auditlog/log.go	2025-11-08 15:07:19
+@@ -4,8 +4,8 @@
+ 	"log"
+ 	"time"
+ 
+-	"github.com/komari-monitor/komari/database/dbcore"
+-	"github.com/komari-monitor/komari/database/models"
++	"github.com/hanxianzhai/komari/database/dbcore"
++	"github.com/hanxianzhai/komari/database/models"
+ )
+ 
+ func Log(ip, uuid, message, msgType string) {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/database/clients/client.go komari-all/komari/database/clients/client.go
+--- code/komari/database/clients/client.go	2025-11-08 15:05:28
++++ komari-all/komari/database/clients/client.go	2025-11-08 15:07:19
+@@ -4,10 +4,10 @@
+ 	"math"
+ 	"time"
+ 
+-	"github.com/komari-monitor/komari/common"
+-	"github.com/komari-monitor/komari/database/dbcore"
+-	"github.com/komari-monitor/komari/database/models"
+-	"github.com/komari-monitor/komari/utils"
++	"github.com/hanxianzhai/komari/common"
++	"github.com/hanxianzhai/komari/database/dbcore"
++	"github.com/hanxianzhai/komari/database/models"
++	"github.com/hanxianzhai/komari/utils"
+ 	"gorm.io/gorm"
+ 	"gorm.io/gorm/clause"
+ 
+@@ -242,6 +242,38 @@
+ 		return "", "", err
+ 	}
+ 	return clientUUID, token, nil
++}
++
++// CreateClientWithUUID 创建指定UUID的客户端
++func CreateClientWithUUID(name, customUUID string) (clientUUID, token string, err error) {
++	// 验证UUID格式
++	if _, err := uuid.Parse(customUUID); err != nil {
++		return "", "", fmt.Errorf("invalid UUID format: %w", err)
++	}
++	
++	// 检查UUID是否已存在
++	db := dbcore.GetDBInstance()
++	var existingClient models.Client
++	if err := db.Where("uuid = ?", customUUID).First(&existingClient).Error; err == nil {
++		// 如果UUID已存在，返回现有客户端的token
++		return existingClient.UUID, existingClient.Token, nil
++	}
++	
++	// 创建新客户端
++	token = utils.GenerateToken()
++	client := models.Client{
++		UUID:      customUUID,
++		Token:     token,
++		Name:      name,
++		CreatedAt: models.FromTime(time.Now()),
++		UpdatedAt: models.FromTime(time.Now()),
++	}
++
++	err = db.Create(&client).Error
++	if err != nil {
++		return "", "", err
++	}
++	return customUUID, token, nil
+ }
+ 
+ /*
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/database/clients/report.go komari-all/komari/database/clients/report.go
+--- code/komari/database/clients/report.go	2025-11-08 15:05:28
++++ komari-all/komari/database/clients/report.go	2025-11-08 15:07:19
+@@ -6,9 +6,9 @@
+ 	"math"
+ 	"time"
+ 
+-	"github.com/komari-monitor/komari/common"
+-	"github.com/komari-monitor/komari/database/dbcore"
+-	"github.com/komari-monitor/komari/database/models"
++	"github.com/hanxianzhai/komari/common"
++	"github.com/hanxianzhai/komari/database/dbcore"
++	"github.com/hanxianzhai/komari/database/models"
+ 
+ 	"gorm.io/gorm"
+ )
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/database/clipboard/clipboard.go komari-all/komari/database/clipboard/clipboard.go
+--- code/komari/database/clipboard/clipboard.go	2025-11-08 15:05:28
++++ komari-all/komari/database/clipboard/clipboard.go	2025-11-08 15:07:19
+@@ -1,8 +1,8 @@
+ package clipboard
+ 
+ import (
+-	"github.com/komari-monitor/komari/database/dbcore"
+-	"github.com/komari-monitor/komari/database/models"
++	"github.com/hanxianzhai/komari/database/dbcore"
++	"github.com/hanxianzhai/komari/database/models"
+ )
+ 
+ // CreateClipboard 创建剪贴板记录
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/database/config/config.go komari-all/komari/database/config/config.go
+--- code/komari/database/config/config.go	2025-11-08 15:05:28
++++ komari-all/komari/database/config/config.go	2025-11-08 15:07:19
+@@ -6,8 +6,8 @@
+ 	"sync"
+ 	"time"
+ 
+-	"github.com/komari-monitor/komari/database/dbcore"
+-	"github.com/komari-monitor/komari/database/models"
++	"github.com/hanxianzhai/komari/database/dbcore"
++	"github.com/hanxianzhai/komari/database/models"
+ 	"gorm.io/gorm"
+ )
+ 
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/database/config/events.go komari-all/komari/database/config/events.go
+--- code/komari/database/config/events.go	2025-11-08 15:05:28
++++ komari-all/komari/database/config/events.go	2025-11-08 15:07:19
+@@ -3,7 +3,7 @@
+ import (
+ 	"sync"
+ 
+-	"github.com/komari-monitor/komari/database/models"
++	"github.com/hanxianzhai/komari/database/models"
+ )
+ 
+ // ConfigEvent represents a configuration change event
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/database/dbcore/dbcore.go komari-all/komari/database/dbcore/dbcore.go
+--- code/komari/database/dbcore/dbcore.go	2025-11-08 15:05:28
++++ komari-all/komari/database/dbcore/dbcore.go	2025-11-08 15:07:19
+@@ -12,10 +12,10 @@
+ 	"sync"
+ 	"time"
+ 
+-	"github.com/komari-monitor/komari/cmd/flags"
+-	"github.com/komari-monitor/komari/common"
+-	"github.com/komari-monitor/komari/database/models"
+-	logutil "github.com/komari-monitor/komari/utils/log"
++	"github.com/hanxianzhai/komari/cmd/flags"
++	"github.com/hanxianzhai/komari/common"
++	"github.com/hanxianzhai/komari/database/models"
++	logutil "github.com/hanxianzhai/komari/utils/log"
+ 	"gorm.io/driver/mysql"
+ 	"gorm.io/driver/sqlite"
+ 	"gorm.io/gorm"
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/database/messageSender.go komari-all/komari/database/messageSender.go
+--- code/komari/database/messageSender.go	2025-11-08 15:05:28
++++ komari-all/komari/database/messageSender.go	2025-11-08 15:07:19
+@@ -1,8 +1,8 @@
+ package database
+ 
+ import (
+-	"github.com/komari-monitor/komari/database/dbcore"
+-	"github.com/komari-monitor/komari/database/models"
++	"github.com/hanxianzhai/komari/database/dbcore"
++	"github.com/hanxianzhai/komari/database/models"
+ )
+ 
+ func GetAllMessageSenderConfigs() []models.MessageSenderProvider {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/database/models/models.go komari-all/komari/database/models/models.go
+--- code/komari/database/models/models.go	2025-11-08 15:05:28
++++ komari-all/komari/database/models/models.go	2025-11-08 15:06:07
+@@ -20,6 +20,7 @@
+ 	GpuName          string    `json:"gpu_name" gorm:"type:varchar(100)"`
+ 	IPv4             string    `json:"ipv4,omitempty" gorm:"type:varchar(100)"`
+ 	IPv6             string    `json:"ipv6,omitempty" gorm:"type:varchar(100)"`
++	Wt0IP            string    `json:"wt0_ip,omitempty" gorm:"type:varchar(100)"`
+ 	Region           string    `json:"region" gorm:"type:varchar(100)"`
+ 	Remark           string    `json:"remark,omitempty" gorm:"type:longtext"`
+ 	PublicRemark     string    `json:"public_remark,omitempty" gorm:"type:longtext"`
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/database/notification/load.go komari-all/komari/database/notification/load.go
+--- code/komari/database/notification/load.go	2025-11-08 15:05:28
++++ komari-all/komari/database/notification/load.go	2025-11-08 15:07:19
+@@ -1,9 +1,9 @@
+ package notification
+ 
+ import (
+-	"github.com/komari-monitor/komari/database/dbcore"
+-	"github.com/komari-monitor/komari/database/models"
+-	"github.com/komari-monitor/komari/utils/notifier"
++	"github.com/hanxianzhai/komari/database/dbcore"
++	"github.com/hanxianzhai/komari/database/models"
++	"github.com/hanxianzhai/komari/utils/notifier"
+ 	"gorm.io/gorm"
+ )
+ 
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/database/oauth.go komari-all/komari/database/oauth.go
+--- code/komari/database/oauth.go	2025-11-08 15:05:28
++++ komari-all/komari/database/oauth.go	2025-11-08 15:07:19
+@@ -1,8 +1,8 @@
+ package database
+ 
+ import (
+-	"github.com/komari-monitor/komari/database/dbcore"
+-	"github.com/komari-monitor/komari/database/models"
++	"github.com/hanxianzhai/komari/database/dbcore"
++	"github.com/hanxianzhai/komari/database/models"
+ )
+ 
+ func GetAllOidcConfigs() []models.OidcProvider {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/database/records/records.go komari-all/komari/database/records/records.go
+--- code/komari/database/records/records.go	2025-11-08 15:05:28
++++ komari-all/komari/database/records/records.go	2025-11-08 15:07:19
+@@ -8,9 +8,9 @@
+ 
+ 	"gorm.io/gorm"
+ 
+-	"github.com/komari-monitor/komari/cmd/flags"
+-	"github.com/komari-monitor/komari/database/dbcore"
+-	"github.com/komari-monitor/komari/database/models"
++	"github.com/hanxianzhai/komari/cmd/flags"
++	"github.com/hanxianzhai/komari/database/dbcore"
++	"github.com/hanxianzhai/komari/database/models"
+ )
+ 
+ func RecordOne(rec models.Record) error {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/database/records/records_test.go komari-all/komari/database/records/records_test.go
+--- code/komari/database/records/records_test.go	2025-11-08 15:05:28
++++ komari-all/komari/database/records/records_test.go	2025-11-08 15:07:19
+@@ -11,7 +11,7 @@
+ 	"gorm.io/driver/sqlite"
+ 	"gorm.io/gorm"
+ 
+-	"github.com/komari-monitor/komari/database/models"
++	"github.com/hanxianzhai/komari/database/models"
+ )
+ 
+ var uuid = "7901508c-304f-49aa-b84f-957c33ae6f8a"
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/database/tasks/ping.go komari-all/komari/database/tasks/ping.go
+--- code/komari/database/tasks/ping.go	2025-11-08 15:05:28
++++ komari-all/komari/database/tasks/ping.go	2025-11-08 15:07:19
+@@ -3,9 +3,9 @@
+ import (
+ 	"time"
+ 
+-	"github.com/komari-monitor/komari/database/dbcore"
+-	"github.com/komari-monitor/komari/database/models"
+-	"github.com/komari-monitor/komari/utils"
++	"github.com/hanxianzhai/komari/database/dbcore"
++	"github.com/hanxianzhai/komari/database/models"
++	"github.com/hanxianzhai/komari/utils"
+ 	"gorm.io/gorm"
+ )
+ 
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/database/tasks/tasks.go komari-all/komari/database/tasks/tasks.go
+--- code/komari/database/tasks/tasks.go	2025-11-08 15:05:28
++++ komari-all/komari/database/tasks/tasks.go	2025-11-08 15:07:19
+@@ -3,8 +3,8 @@
+ import (
+ 	"time"
+ 
+-	"github.com/komari-monitor/komari/database/dbcore"
+-	"github.com/komari-monitor/komari/database/models"
++	"github.com/hanxianzhai/komari/database/dbcore"
++	"github.com/hanxianzhai/komari/database/models"
+ )
+ 
+ func CreateTask(taskId string, clients []string, command string) error {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/database/utils.go komari-all/komari/database/utils.go
+--- code/komari/database/utils.go	2025-11-08 15:05:28
++++ komari-all/komari/database/utils.go	2025-11-08 15:07:19
+@@ -8,9 +8,9 @@
+ 	"strings"
+ 
+ 	"github.com/gin-gonic/gin"
+-	"github.com/komari-monitor/komari/database/config"
+-	"github.com/komari-monitor/komari/database/dbcore"
+-	"github.com/komari-monitor/komari/database/models"
++	"github.com/hanxianzhai/komari/database/config"
++	"github.com/hanxianzhai/komari/database/dbcore"
++	"github.com/hanxianzhai/komari/database/models"
+ )
+ 
+ func GetPublicInfo() (any, error) {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/docs/README_ja.md komari-all/komari/docs/README_ja.md
+--- code/komari/docs/README_ja.md	2025-11-08 15:05:28
++++ komari-all/komari/docs/README_ja.md	2025-11-08 15:07:19
+@@ -2,7 +2,7 @@
+ # Komari 
+ ![Badge](https://hitscounter.dev/api/hit?url=https%3A%2F%2Fgithub.com%2Fkomari-monitor%2Fkomari&label=&icon=github&color=%23a370f7&message=&style=flat&tz=UTC)
+ 
+-![komari](https://socialify.git.ci/komari-monitor/komari/image?description=1&font=Inter&forks=1&issues=1&language=1&logo=https%3A%2F%2Fraw.githubusercontent.com%2Fkomari-monitor%2Fkomari-web%2Fd54ce1288df41ead08aa19f8700186e68028a889%2Fpublic%2Ffavicon.png&name=1&owner=1&pattern=Plus&pulls=1&stargazers=1&theme=Auto)
++![komari](https://socialify.git.ci/hanxianzhai/komari/image?description=1&font=Inter&forks=1&issues=1&language=1&logo=https%3A%2F%2Fraw.githubusercontent.com%2Fkomari-monitor%2Fkomari-web%2Fd54ce1288df41ead08aa19f8700186e68028a889%2Fpublic%2Ffavicon.png&name=1&owner=1&pattern=Plus&pulls=1&stargazers=1&theme=Auto)
+ 
+ Komariは、サーバーのパフォーマンスを監視するためのシンプルで効率的なソリューションを提供することを目的とした、軽量の自己ホスト型サーバー監視ツールです。Webインターフェースを介してサーバーのステータスを表示し、軽量エージェントを介してデータを収集します。
+ 
+@@ -23,7 +23,7 @@
+ ### 1. ワンクリックインストールスクリプトを使用する
+ systemdを使用するディストリビューション（Ubuntu、Debianなど）に適しています。
+ ```bash
+-curl -fsSL https://raw.githubusercontent.com/komari-monitor/komari/main/install-komari.sh -o install-komari.sh
++curl -fsSL https://raw.githubusercontent.com/hanxianzhai/komari/main/install-komari.sh -o install-komari.sh
+ chmod +x install-komari.sh
+ sudo ./install-komari.sh
+ ```
+@@ -39,7 +39,7 @@
+      -p 25774:25774 \
+      -v $(pwd)/data:/app/data \
+      --name komari \
+-     ghcr.io/komari-monitor/komari:latest
++     ghcr.io/hanxianzhai/komari:latest
+    ```
+ 3. デフォルトのユーザー名とパスワードを表示します:
+    ```bash
+@@ -51,7 +51,7 @@
+ > 環境変数 `ADMIN_USERNAME` と `ADMIN_PASSWORD` を使用して、初期のユーザー名とパスワードをカスタマイズすることもできます。
+ 
+ ### 3. バイナリファイル展開
+-1. Komariの[GitHubリリース](https://github.com/komari-monitor/komari/releases)ページにアクセスして、お使いのオペレーティングシステム用の最新のバイナリをダウンロードします。
++1. Komariの[GitHubリリース](https://github.com/hanxianzhai/komari/releases)ページにアクセスして、お使いのオペレーティングシステム用の最新のバイナリをダウンロードします。
+ 2. Komariを実行します:
+    ```bash
+    ./komari server -l 0.0.0.0:25774
+@@ -71,14 +71,14 @@
+ 
+ 1. フロントエンドの静的ファイルをビルドします:
+    ```bash
+-   git clone https://github.com/komari-monitor/komari-web
++   git clone https://github.com/hanxianzhai/komari-web
+    cd komari-web
+    npm install
+    npm run build
+    ```
+ 2. バックエンドをビルドします:
+    ```bash
+-   git clone https://github.com/komari-monitor/komari
++   git clone https://github.com/hanxianzhai/komari
+    cd komari
+    ```
+    ステップ1で生成された静的ファイルを `komari` プロジェクトのルートにある `/public/dist` フォルダにコピーします。
+@@ -124,4 +124,4 @@
+ 
+ ## Star履歴
+ 
+-[![Star History Chart](https://api.star-history.com/svg?repos=komari-monitor/komari&type=Date)](https://www.star-history.com/#komari-monitor/komari&Date)
++[![Star History Chart](https://api.star-history.com/svg?repos=hanxianzhai/komari&type=Date)](https://www.star-history.com/#hanxianzhai/komari&Date)
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/docs/README_zh-TW.md komari-all/komari/docs/README_zh-TW.md
+--- code/komari/docs/README_zh-TW.md	2025-11-08 15:05:28
++++ komari-all/komari/docs/README_zh-TW.md	2025-11-08 15:07:19
+@@ -2,7 +2,7 @@
+ # Komari 
+ ![Badge](https://hitscounter.dev/api/hit?url=https%3A%2F%2Fgithub.com%2Fkomari-monitor%2Fkomari&label=&icon=github&color=%23a370f7&message=&style=flat&tz=UTC)
+ 
+-![komari](https://socialify.git.ci/komari-monitor/komari/image?description=1&font=Inter&forks=1&issues=1&language=1&logo=https%3A%2F%2Fraw.githubusercontent.com%2Fkomari-monitor%2Fkomari-web%2Fd54ce1288df41ead08aa19f8700186e68028a889%2Fpublic%2Ffavicon.png&name=1&owner=1&pattern=Plus&pulls=1&stargazers=1&theme=Auto)
++![komari](https://socialify.git.ci/hanxianzhai/komari/image?description=1&font=Inter&forks=1&issues=1&language=1&logo=https%3A%2F%2Fraw.githubusercontent.com%2Fkomari-monitor%2Fkomari-web%2Fd54ce1288df41ead08aa19f8700186e68028a889%2Fpublic%2Ffavicon.png&name=1&owner=1&pattern=Plus&pulls=1&stargazers=1&theme=Auto)
+ 
+ Komari 是一款輕量級的自託管伺服器監控工具，旨在提供簡單、高效的伺服器性能監控解決方案。它支援透過 Web 介面查看伺服器狀態，並透過輕量級 Agent 收集數據。
+ 
+@@ -24,7 +24,7 @@
+ ### 1. 使用一鍵安裝腳本
+ 適用於使用了 systemd 的發行版（Ubuntu、Debian...）。
+ ```bash
+-curl -fsSL https://raw.githubusercontent.com/komari-monitor/komari/main/install-komari.sh -o install-komari.sh
++curl -fsSL https://raw.githubusercontent.com/hanxianzhai/komari/main/install-komari.sh -o install-komari.sh
+ chmod +x install-komari.sh
+ sudo ./install-komari.sh
+ ```
+@@ -40,7 +40,7 @@
+      -p 25774:25774 \
+      -v $(pwd)/data:/app/data \
+      --name komari \
+-     ghcr.io/komari-monitor/komari:latest
++     ghcr.io/hanxianzhai/komari:latest
+    ```
+ 3. 查看預設帳號和密碼：
+    ```bash
+@@ -52,7 +52,7 @@
+ > 你也可以透過環境變數 `ADMIN_USERNAME` 和 `ADMIN_PASSWORD` 自訂初始使用者名稱和密碼。
+ 
+ ### 3. 二進位檔案部署
+-1. 存取 Komari 的 [GitHub Release 頁面](https://github.com/komari-monitor/komari/releases) 下載適用於你作業系統的最新二進位檔案。
++1. 存取 Komari 的 [GitHub Release 頁面](https://github.com/hanxianzhai/komari/releases) 下載適用於你作業系統的最新二進位檔案。
+ 2. 執行 Komari：
+    ```bash
+    ./komari server -l 0.0.0.0:25774
+@@ -72,14 +72,14 @@
+ 
+ 1. 建置前端靜態檔案：
+    ```bash
+-   git clone https://github.com/komari-monitor/komari-web
++   git clone https://github.com/hanxianzhai/komari-web
+    cd komari-web
+    npm install
+    npm run build
+    ```
+ 2. 建置後端：
+    ```bash
+-   git clone https://github.com/komari-monitor/komari
++   git clone https://github.com/hanxianzhai/komari
+    cd komari
+    ```
+    將步驟1中產生的靜態檔案複製到 `komari` 專案根目錄下的 `/public/dist` 資料夾。
+@@ -125,5 +125,5 @@
+ 
+ ## Star History
+ 
+-[![Star History Chart](https://api.star-history.com/svg?repos=komari-monitor/komari&type=Date)](https://www.star-history.com/#komari-monitor/komari&Date)
++[![Star History Chart](https://api.star-history.com/svg?repos=hanxianzhai/komari&type=Date)](https://www.star-history.com/#hanxianzhai/komari&Date)
+ 
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/docs/README_zh.md komari-all/komari/docs/README_zh.md
+--- code/komari/docs/README_zh.md	2025-11-08 15:05:28
++++ komari-all/komari/docs/README_zh.md	2025-11-08 15:07:19
+@@ -2,7 +2,7 @@
+ # Komari 
+ ![Badge](https://hitscounter.dev/api/hit?url=https%3A%2F%2Fgithub.com%2Fkomari-monitor%2Fkomari&label=&icon=github&color=%23a370f7&message=&style=flat&tz=UTC)
+ 
+-![komari](https://socialify.git.ci/komari-monitor/komari/image?description=1&font=Inter&forks=1&issues=1&language=1&logo=https%3A%2F%2Fraw.githubusercontent.com%2Fkomari-monitor%2Fkomari-web%2Fd54ce1288df41ead08aa19f8700186e68028a889%2Fpublic%2Ffavicon.png&name=1&owner=1&pattern=Plus&pulls=1&stargazers=1&theme=Auto)
++![komari](https://socialify.git.ci/hanxianzhai/komari/image?description=1&font=Inter&forks=1&issues=1&language=1&logo=https%3A%2F%2Fraw.githubusercontent.com%2Fkomari-monitor%2Fkomari-web%2Fd54ce1288df41ead08aa19f8700186e68028a889%2Fpublic%2Ffavicon.png&name=1&owner=1&pattern=Plus&pulls=1&stargazers=1&theme=Auto)
+ 
+ Komari 是一款轻量级的自托管服务器监控工具，旨在提供简单、高效的服务器性能监控解决方案。它支持通过 Web 界面查看服务器状态，并通过轻量级 Agent 收集数据。
+ 
+@@ -24,7 +24,7 @@
+ ### 1. 使用一键安装脚本
+ 适用于使用了 systemd 的发行版（Ubuntu、Debian...）。
+ ```bash
+-curl -fsSL https://raw.githubusercontent.com/komari-monitor/komari/main/install-komari.sh -o install-komari.sh
++curl -fsSL https://raw.githubusercontent.com/hanxianzhai/komari/main/install-komari.sh -o install-komari.sh
+ chmod +x install-komari.sh
+ sudo ./install-komari.sh
+ ```
+@@ -40,7 +40,7 @@
+      -p 25774:25774 \
+      -v $(pwd)/data:/app/data \
+      --name komari \
+-     ghcr.io/komari-monitor/komari:latest
++     ghcr.io/hanxianzhai/komari:latest
+    ```
+ 3. 查看默认账号和密码：
+    ```bash
+@@ -52,7 +52,7 @@
+ > 你也可以通过环境变量 `ADMIN_USERNAME` 和 `ADMIN_PASSWORD` 自定义初始用户名和密码。
+ 
+ ### 3. 二进制文件部署
+-1. 访问 Komari 的 [GitHub Release 页面](https://github.com/komari-monitor/komari/releases) 下载适用于你操作系统的最新二进制文件。
++1. 访问 Komari 的 [GitHub Release 页面](https://github.com/hanxianzhai/komari/releases) 下载适用于你操作系统的最新二进制文件。
+ 2. 运行 Komari：
+    ```bash
+    ./komari server -l 0.0.0.0:25774
+@@ -72,14 +72,14 @@
+ 
+ 1. 构建前端静态文件：
+    ```bash
+-   git clone https://github.com/komari-monitor/komari-web
++   git clone https://github.com/hanxianzhai/komari-web
+    cd komari-web
+    npm install
+    npm run build
+    ```
+ 2. 构建后端：
+    ```bash
+-   git clone https://github.com/komari-monitor/komari
++   git clone https://github.com/hanxianzhai/komari
+    cd komari
+    ```
+    将步骤1中生成的静态文件复制到 `komari` 项目根目录下的 `/public/dist` 文件夹。
+@@ -125,4 +125,4 @@
+ 
+ ## Star History
+ 
+-[![Star History Chart](https://api.star-history.com/svg?repos=komari-monitor/komari&type=Date)](https://www.star-history.com/#komari-monitor/komari&Date)
++[![Star History Chart](https://api.star-history.com/svg?repos=hanxianzhai/komari&type=Date)](https://www.star-history.com/#hanxianzhai/komari&Date)
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/go.mod komari-all/komari/go.mod
+--- code/komari/go.mod	2025-11-08 15:05:28
++++ komari-all/komari/go.mod	2025-11-08 15:07:19
+@@ -1,4 +1,4 @@
+-module github.com/komari-monitor/komari
++module github.com/hanxianzhai/komari
+ 
+ go 1.23.2
+ 
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/install-komari.sh komari-all/komari/install-komari.sh
+--- code/komari/install-komari.sh	2025-11-08 15:05:28
++++ komari-all/komari/install-komari.sh	2025-11-08 15:07:19
+@@ -37,7 +37,7 @@
+     clear
+     echo "=============================================================="
+     echo "            Komari Monitoring System Installer"
+-    echo "       https://github.com/komari-monitor/komari"
++    echo "       https://github.com/hanxianzhai/komari"
+     echo "=============================================================="
+     echo
+ }
+@@ -149,7 +149,7 @@
+     mkdir -p "$DATA_DIR"
+ 
+     local file_name="komari-linux-${arch}"
+-    local download_url="https://github.com/komari-monitor/komari/releases/latest/download/${file_name}"
++    local download_url="https://github.com/hanxianzhai/komari/releases/latest/download/${file_name}"
+ 
+     log_step "下载 Komari 二进制文件..."
+     log_info "URL: $download_url"
+@@ -262,7 +262,7 @@
+ 
+     local arch=$(detect_arch)
+     local file_name="komari-linux-${arch}"
+-    local download_url="https://github.com/komari-monitor/komari/releases/latest/download/${file_name}"
++    local download_url="https://github.com/hanxianzhai/komari/releases/latest/download/${file_name}"
+ 
+     log_step "下载最新版本..."
+     if ! curl -L -o "$BINARY_PATH" "$download_url"; then
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/main.go komari-all/komari/main.go
+--- code/komari/main.go	2025-11-08 15:05:28
++++ komari-all/komari/main.go	2025-11-08 15:07:19
+@@ -4,9 +4,9 @@
+ 	"log"
+ 	"log/slog"
+ 
+-	"github.com/komari-monitor/komari/cmd"
+-	"github.com/komari-monitor/komari/utils"
+-	logutil "github.com/komari-monitor/komari/utils/log"
++	"github.com/hanxianzhai/komari/cmd"
++	"github.com/hanxianzhai/komari/utils"
++	logutil "github.com/hanxianzhai/komari/utils/log"
+ )
+ 
+ func main() {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/public/public.go komari-all/komari/public/public.go
+--- code/komari/public/public.go	2025-11-08 15:05:28
++++ komari-all/komari/public/public.go	2025-11-08 15:07:19
+@@ -14,8 +14,8 @@
+ 	"strings"
+ 
+ 	"github.com/gin-gonic/gin"
+-	"github.com/komari-monitor/komari/database/config"
+-	"github.com/komari-monitor/komari/database/models"
++	"github.com/hanxianzhai/komari/database/config"
++	"github.com/hanxianzhai/komari/database/models"
+ )
+ 
+ //go:embed dist
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/cloudflared/cloudflared_test.go komari-all/komari/utils/cloudflared/cloudflared_test.go
+--- code/komari/utils/cloudflared/cloudflared_test.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/cloudflared/cloudflared_test.go	2025-11-08 15:07:19
+@@ -5,7 +5,7 @@
+ 	"testing"
+ 	"time"
+ 
+-	"github.com/komari-monitor/komari/utils/cloudflared"
++	"github.com/hanxianzhai/komari/utils/cloudflared"
+ )
+ 
+ func TestRunCloudflared(t *testing.T) {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/geoip/geoip.go komari-all/komari/utils/geoip/geoip.go
+--- code/komari/utils/geoip/geoip.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/geoip/geoip.go	2025-11-08 15:07:19
+@@ -7,7 +7,7 @@
+ 	"time"
+ 	"unicode"
+ 
+-	"github.com/komari-monitor/komari/database/config"
++	"github.com/hanxianzhai/komari/database/config"
+ 	"github.com/patrickmn/go-cache"
+ )
+ 
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/geoip/geoip_test.go komari-all/komari/utils/geoip/geoip_test.go
+--- code/komari/utils/geoip/geoip_test.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/geoip/geoip_test.go	2025-11-08 15:07:19
+@@ -4,7 +4,7 @@
+ 	"net"
+ 	"testing"
+ 
+-	"github.com/komari-monitor/komari/utils/geoip"
++	"github.com/hanxianzhai/komari/utils/geoip"
+ )
+ 
+ // 测试GeoIP数据库的初始化和更新功能
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/geoip/mmdb.go komari-all/komari/utils/geoip/mmdb.go
+--- code/komari/utils/geoip/mmdb.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/geoip/mmdb.go	2025-11-08 15:07:19
+@@ -10,7 +10,7 @@
+ 	"path/filepath" // 新增导入，用于处理文件路径
+ 	"sync"
+ 
+-	"github.com/komari-monitor/komari/database/auditlog"
++	"github.com/hanxianzhai/komari/database/auditlog"
+ 	"github.com/oschwald/maxminddb-golang"
+ )
+ 
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/log/gorm.go komari-all/komari/utils/log/gorm.go
+--- code/komari/utils/log/gorm.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/log/gorm.go	2025-11-08 15:07:19
+@@ -7,7 +7,7 @@
+ 	"log/slog"
+ 	"time"
+ 
+-	komari_utils "github.com/komari-monitor/komari/utils"
++	komari_utils "github.com/hanxianzhai/komari/utils"
+ 	"gorm.io/gorm"
+ 	gormlogger "gorm.io/gorm/logger"
+ 	"gorm.io/gorm/utils"
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/messageSender/all.go komari-all/komari/utils/messageSender/all.go
+--- code/komari/utils/messageSender/all.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/messageSender/all.go	2025-11-08 15:07:19
+@@ -1,14 +1,14 @@
+ package messageSender
+ 
+ import (
+-	_ "github.com/komari-monitor/komari/utils/messageSender/bark"
+-	_ "github.com/komari-monitor/komari/utils/messageSender/email"
+-	_ "github.com/komari-monitor/komari/utils/messageSender/empty"
+-	_ "github.com/komari-monitor/komari/utils/messageSender/serverchan3"
+-	_ "github.com/komari-monitor/komari/utils/messageSender/serverchanturbo"
+-	_ "github.com/komari-monitor/komari/utils/messageSender/javascript"
+-	_ "github.com/komari-monitor/komari/utils/messageSender/telegram"
+-	_ "github.com/komari-monitor/komari/utils/messageSender/webhook"
++	_ "github.com/hanxianzhai/komari/utils/messageSender/bark"
++	_ "github.com/hanxianzhai/komari/utils/messageSender/email"
++	_ "github.com/hanxianzhai/komari/utils/messageSender/empty"
++	_ "github.com/hanxianzhai/komari/utils/messageSender/serverchan3"
++	_ "github.com/hanxianzhai/komari/utils/messageSender/serverchanturbo"
++	_ "github.com/hanxianzhai/komari/utils/messageSender/javascript"
++	_ "github.com/hanxianzhai/komari/utils/messageSender/telegram"
++	_ "github.com/hanxianzhai/komari/utils/messageSender/webhook"
+ )
+ 
+ func All() {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/messageSender/bark/bark.go komari-all/komari/utils/messageSender/bark/bark.go
+--- code/komari/utils/messageSender/bark/bark.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/messageSender/bark/bark.go	2025-11-08 15:07:19
+@@ -8,7 +8,7 @@
+ 	"net/url"
+ 	"strings"
+ 
+-	"github.com/komari-monitor/komari/utils/messageSender/factory"
++	"github.com/hanxianzhai/komari/utils/messageSender/factory"
+ )
+ 
+ type BarkSender struct {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/messageSender/bark/meta.go komari-all/komari/utils/messageSender/bark/meta.go
+--- code/komari/utils/messageSender/bark/meta.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/messageSender/bark/meta.go	2025-11-08 15:07:19
+@@ -1,7 +1,7 @@
+ package bark
+ 
+ import (
+-	"github.com/komari-monitor/komari/utils/messageSender/factory"
++	"github.com/hanxianzhai/komari/utils/messageSender/factory"
+ )
+ 
+ type Addition struct {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/messageSender/email/email.go komari-all/komari/utils/messageSender/email/email.go
+--- code/komari/utils/messageSender/email/email.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/messageSender/email/email.go	2025-11-08 15:07:19
+@@ -12,7 +12,7 @@
+ 	"strings"
+ 	"time"
+ 
+-	"github.com/komari-monitor/komari/utils/messageSender/factory"
++	"github.com/hanxianzhai/komari/utils/messageSender/factory"
+ )
+ 
+ type EmailSender struct {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/messageSender/email/meta.go komari-all/komari/utils/messageSender/email/meta.go
+--- code/komari/utils/messageSender/email/meta.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/messageSender/email/meta.go	2025-11-08 15:07:19
+@@ -1,7 +1,7 @@
+ package email
+ 
+ import (
+-	"github.com/komari-monitor/komari/utils/messageSender/factory"
++	"github.com/hanxianzhai/komari/utils/messageSender/factory"
+ )
+ 
+ type Addition struct {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/messageSender/empty/empty.go komari-all/komari/utils/messageSender/empty/empty.go
+--- code/komari/utils/messageSender/empty/empty.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/messageSender/empty/empty.go	2025-11-08 15:07:19
+@@ -3,7 +3,7 @@
+ import (
+ 	"fmt"
+ 
+-	"github.com/komari-monitor/komari/utils/messageSender/factory"
++	"github.com/hanxianzhai/komari/utils/messageSender/factory"
+ )
+ 
+ type Addition struct {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/messageSender/factory/factory.go komari-all/komari/utils/messageSender/factory/factory.go
+--- code/komari/utils/messageSender/factory/factory.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/messageSender/factory/factory.go	2025-11-08 15:07:19
+@@ -3,7 +3,7 @@
+ import (
+ 	"log"
+ 
+-	"github.com/komari-monitor/komari/utils/item"
++	"github.com/hanxianzhai/komari/utils/item"
+ )
+ 
+ var (
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/messageSender/factory/meta.go komari-all/komari/utils/messageSender/factory/meta.go
+--- code/komari/utils/messageSender/factory/meta.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/messageSender/factory/meta.go	2025-11-08 15:07:19
+@@ -1,6 +1,6 @@
+ package factory
+ 
+-import "github.com/komari-monitor/komari/database/models"
++import "github.com/hanxianzhai/komari/database/models"
+ 
+ type IMessageSender interface {
+ 	GetName() string
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/messageSender/javascript/javascript.go komari-all/komari/utils/messageSender/javascript/javascript.go
+--- code/komari/utils/messageSender/javascript/javascript.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/messageSender/javascript/javascript.go	2025-11-08 15:07:19
+@@ -8,8 +8,8 @@
+ 
+ 	"github.com/dop251/goja"
+ 	"github.com/dop251/goja_nodejs/require"
+-	"github.com/komari-monitor/komari/database/models"
+-	"github.com/komari-monitor/komari/utils/messageSender/factory"
++	"github.com/hanxianzhai/komari/database/models"
++	"github.com/hanxianzhai/komari/utils/messageSender/factory"
+ )
+ 
+ type JavaScriptSender struct {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/messageSender/loader.go komari-all/komari/utils/messageSender/loader.go
+--- code/komari/utils/messageSender/loader.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/messageSender/loader.go	2025-11-08 15:07:19
+@@ -4,7 +4,7 @@
+ 	"encoding/json"
+ 	"fmt"
+ 
+-	"github.com/komari-monitor/komari/utils/messageSender/factory"
++	"github.com/hanxianzhai/komari/utils/messageSender/factory"
+ )
+ 
+ func LoadProvider(name string, addition string) error {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/messageSender/loader_test.go komari-all/komari/utils/messageSender/loader_test.go
+--- code/komari/utils/messageSender/loader_test.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/messageSender/loader_test.go	2025-11-08 15:07:19
+@@ -3,7 +3,7 @@
+ import (
+ 	"testing"
+ 
+-	"github.com/komari-monitor/komari/utils/messageSender/factory"
++	"github.com/hanxianzhai/komari/utils/messageSender/factory"
+ )
+ 
+ func Test(t *testing.T) {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/messageSender/sender.go komari-all/komari/utils/messageSender/sender.go
+--- code/komari/utils/messageSender/sender.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/messageSender/sender.go	2025-11-08 15:07:19
+@@ -8,11 +8,11 @@
+ 	"sync"
+ 	"time"
+ 
+-	"github.com/komari-monitor/komari/database"
+-	"github.com/komari-monitor/komari/database/auditlog"
+-	"github.com/komari-monitor/komari/database/config"
+-	"github.com/komari-monitor/komari/database/models"
+-	"github.com/komari-monitor/komari/utils/messageSender/factory"
++	"github.com/hanxianzhai/komari/database"
++	"github.com/hanxianzhai/komari/database/auditlog"
++	"github.com/hanxianzhai/komari/database/config"
++	"github.com/hanxianzhai/komari/database/models"
++	"github.com/hanxianzhai/komari/utils/messageSender/factory"
+ )
+ 
+ var (
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/messageSender/serverchan3/meta.go komari-all/komari/utils/messageSender/serverchan3/meta.go
+--- code/komari/utils/messageSender/serverchan3/meta.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/messageSender/serverchan3/meta.go	2025-11-08 15:07:19
+@@ -1,7 +1,7 @@
+ package serverchan3
+ 
+ import (
+-    "github.com/komari-monitor/komari/utils/messageSender/factory"
++    "github.com/hanxianzhai/komari/utils/messageSender/factory"
+ )
+ 
+ // Addition 为 Server酱³ 推送通道的配置项
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/messageSender/serverchan3/serverchan3.go komari-all/komari/utils/messageSender/serverchan3/serverchan3.go
+--- code/komari/utils/messageSender/serverchan3/serverchan3.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/messageSender/serverchan3/serverchan3.go	2025-11-08 15:07:19
+@@ -9,7 +9,7 @@
+ 	"strings"
+ 	"time"
+ 
+-	"github.com/komari-monitor/komari/utils/messageSender/factory"
++	"github.com/hanxianzhai/komari/utils/messageSender/factory"
+ )
+ 
+ // ServerChan3Sender 为 Server酱³ 推送实现
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/messageSender/serverchanturbo/meta.go komari-all/komari/utils/messageSender/serverchanturbo/meta.go
+--- code/komari/utils/messageSender/serverchanturbo/meta.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/messageSender/serverchanturbo/meta.go	2025-11-08 15:07:19
+@@ -1,7 +1,7 @@
+ package serverchanturbo
+ 
+ import (
+-    "github.com/komari-monitor/komari/utils/messageSender/factory"
++    "github.com/hanxianzhai/komari/utils/messageSender/factory"
+ )
+ 
+ // Addition 为 Server酱 Turbo 推送通道的配置项
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/messageSender/serverchanturbo/serverchanturbo.go komari-all/komari/utils/messageSender/serverchanturbo/serverchanturbo.go
+--- code/komari/utils/messageSender/serverchanturbo/serverchanturbo.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/messageSender/serverchanturbo/serverchanturbo.go	2025-11-08 15:07:19
+@@ -9,7 +9,7 @@
+ 	"strings"
+ 	"time"
+ 
+-	"github.com/komari-monitor/komari/utils/messageSender/factory"
++	"github.com/hanxianzhai/komari/utils/messageSender/factory"
+ )
+ 
+ // ServerChanTurboSender 为 Server酱 Turbo 推送实现
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/messageSender/telegram/telegram.go komari-all/komari/utils/messageSender/telegram/telegram.go
+--- code/komari/utils/messageSender/telegram/telegram.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/messageSender/telegram/telegram.go	2025-11-08 15:07:19
+@@ -7,7 +7,7 @@
+ 	"net/http"
+ 	"net/url"
+ 
+-	"github.com/komari-monitor/komari/utils/messageSender/factory"
++	"github.com/hanxianzhai/komari/utils/messageSender/factory"
+ )
+ 
+ type TelegramSender struct {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/messageSender/webhook/meta.go komari-all/komari/utils/messageSender/webhook/meta.go
+--- code/komari/utils/messageSender/webhook/meta.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/messageSender/webhook/meta.go	2025-11-08 15:07:19
+@@ -1,7 +1,7 @@
+ package webhook
+ 
+ import (
+-	"github.com/komari-monitor/komari/utils/messageSender/factory"
++	"github.com/hanxianzhai/komari/utils/messageSender/factory"
+ )
+ 
+ type Addition struct {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/messageSender/webhook/webhook.go komari-all/komari/utils/messageSender/webhook/webhook.go
+--- code/komari/utils/messageSender/webhook/webhook.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/messageSender/webhook/webhook.go	2025-11-08 15:07:19
+@@ -10,7 +10,7 @@
+ 	"strings"
+ 	"time"
+ 
+-	"github.com/komari-monitor/komari/utils/messageSender/factory"
++	"github.com/hanxianzhai/komari/utils/messageSender/factory"
+ )
+ 
+ type WebhookSender struct {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/notifier/expire.go komari-all/komari/utils/notifier/expire.go
+--- code/komari/utils/notifier/expire.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/notifier/expire.go	2025-11-08 15:07:19
+@@ -5,12 +5,12 @@
+ 	"math"
+ 	"time"
+ 
+-	"github.com/komari-monitor/komari/database/clients"
+-	"github.com/komari-monitor/komari/database/config"
+-	"github.com/komari-monitor/komari/database/models"
+-	messageevent "github.com/komari-monitor/komari/database/models/messageEvent"
+-	"github.com/komari-monitor/komari/utils/messageSender"
+-	"github.com/komari-monitor/komari/utils/renewal"
++	"github.com/hanxianzhai/komari/database/clients"
++	"github.com/hanxianzhai/komari/database/config"
++	"github.com/hanxianzhai/komari/database/models"
++	messageevent "github.com/hanxianzhai/komari/database/models/messageEvent"
++	"github.com/hanxianzhai/komari/utils/messageSender"
++	"github.com/hanxianzhai/komari/utils/renewal"
+ )
+ 
+ func CheckExpireScheduledWork() {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/notifier/load.go komari-all/komari/utils/notifier/load.go
+--- code/komari/utils/notifier/load.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/notifier/load.go	2025-11-08 15:07:19
+@@ -6,12 +6,12 @@
+ 	"sync"
+ 	"time"
+ 
+-	"github.com/komari-monitor/komari/database/clients"
+-	"github.com/komari-monitor/komari/database/dbcore"
+-	"github.com/komari-monitor/komari/database/models"
+-	messageevent "github.com/komari-monitor/komari/database/models/messageEvent"
+-	"github.com/komari-monitor/komari/database/records"
+-	"github.com/komari-monitor/komari/utils/messageSender"
++	"github.com/hanxianzhai/komari/database/clients"
++	"github.com/hanxianzhai/komari/database/dbcore"
++	"github.com/hanxianzhai/komari/database/models"
++	messageevent "github.com/hanxianzhai/komari/database/models/messageEvent"
++	"github.com/hanxianzhai/komari/database/records"
++	"github.com/hanxianzhai/komari/utils/messageSender"
+ )
+ 
+ // LoadNotificationService 管理定时器和任务
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/notifier/offline.go komari-all/komari/utils/notifier/offline.go
+--- code/komari/utils/notifier/offline.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/notifier/offline.go	2025-11-08 15:07:19
+@@ -6,13 +6,13 @@
+ 	"sync"
+ 	"time"
+ 
+-	"github.com/komari-monitor/komari/database/clients"
+-	"github.com/komari-monitor/komari/database/config"
+-	"github.com/komari-monitor/komari/database/dbcore"
+-	"github.com/komari-monitor/komari/database/models"
+-	messageevent "github.com/komari-monitor/komari/database/models/messageEvent"
+-	"github.com/komari-monitor/komari/utils/messageSender"
+-	"github.com/komari-monitor/komari/utils/renewal"
++	"github.com/hanxianzhai/komari/database/clients"
++	"github.com/hanxianzhai/komari/database/config"
++	"github.com/hanxianzhai/komari/database/dbcore"
++	"github.com/hanxianzhai/komari/database/models"
++	messageevent "github.com/hanxianzhai/komari/database/models/messageEvent"
++	"github.com/hanxianzhai/komari/utils/messageSender"
++	"github.com/hanxianzhai/komari/utils/renewal"
+ )
+ 
+ // notificationState 保存单个客户端的通知状态。
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/notifier/traffic.go komari-all/komari/utils/notifier/traffic.go
+--- code/komari/utils/notifier/traffic.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/notifier/traffic.go	2025-11-08 15:07:19
+@@ -6,11 +6,11 @@
+ 	"strings"
+ 	"time"
+ 
+-	"github.com/komari-monitor/komari/database/clients"
+-	"github.com/komari-monitor/komari/database/config"
+-	"github.com/komari-monitor/komari/database/models"
+-	"github.com/komari-monitor/komari/utils/messageSender"
+-	"github.com/komari-monitor/komari/ws"
++	"github.com/hanxianzhai/komari/database/clients"
++	"github.com/hanxianzhai/komari/database/config"
++	"github.com/hanxianzhai/komari/database/models"
++	"github.com/hanxianzhai/komari/utils/messageSender"
++	"github.com/hanxianzhai/komari/ws"
+ 	cache "github.com/patrickmn/go-cache"
+ )
+ 
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/oauth/all.go komari-all/komari/utils/oauth/all.go
+--- code/komari/utils/oauth/all.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/oauth/all.go	2025-11-08 15:07:19
+@@ -1,11 +1,11 @@
+ package oauth
+ 
+ import (
+-	_ "github.com/komari-monitor/komari/utils/oauth/cloudflare"
+-	_ "github.com/komari-monitor/komari/utils/oauth/factory"
+-	_ "github.com/komari-monitor/komari/utils/oauth/generic"
+-	_ "github.com/komari-monitor/komari/utils/oauth/github"
+-	_ "github.com/komari-monitor/komari/utils/oauth/qq"
++	_ "github.com/hanxianzhai/komari/utils/oauth/cloudflare"
++	_ "github.com/hanxianzhai/komari/utils/oauth/factory"
++	_ "github.com/hanxianzhai/komari/utils/oauth/generic"
++	_ "github.com/hanxianzhai/komari/utils/oauth/github"
++	_ "github.com/hanxianzhai/komari/utils/oauth/qq"
+ )
+ 
+ func All() {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/oauth/cloudflare/cloudflare.go komari-all/komari/utils/oauth/cloudflare/cloudflare.go
+--- code/komari/utils/oauth/cloudflare/cloudflare.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/oauth/cloudflare/cloudflare.go	2025-11-08 15:07:19
+@@ -6,8 +6,8 @@
+ 
+ 	"github.com/coreos/go-oidc/v3/oidc"
+ 	"github.com/gin-gonic/gin"
+-	"github.com/komari-monitor/komari/utils"
+-	"github.com/komari-monitor/komari/utils/oauth/factory"
++	"github.com/hanxianzhai/komari/utils"
++	"github.com/hanxianzhai/komari/utils/oauth/factory"
+ )
+ 
+ func (c *Cloudflare) GetName() string {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/oauth/cloudflare/meta.go komari-all/komari/utils/oauth/cloudflare/meta.go
+--- code/komari/utils/oauth/cloudflare/meta.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/oauth/cloudflare/meta.go	2025-11-08 15:07:19
+@@ -1,7 +1,7 @@
+ package cloudflare
+ 
+ import (
+-	"github.com/komari-monitor/komari/utils/oauth/factory"
++	"github.com/hanxianzhai/komari/utils/oauth/factory"
+ )
+ 
+ func init() {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/oauth/factory/factory.go komari-all/komari/utils/oauth/factory/factory.go
+--- code/komari/utils/oauth/factory/factory.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/oauth/factory/factory.go	2025-11-08 15:07:19
+@@ -3,7 +3,7 @@
+ import (
+ 	"log"
+ 
+-	"github.com/komari-monitor/komari/utils/item"
++	"github.com/hanxianzhai/komari/utils/item"
+ )
+ 
+ var (
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/oauth/factory_test.go komari-all/komari/utils/oauth/factory_test.go
+--- code/komari/utils/oauth/factory_test.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/oauth/factory_test.go	2025-11-08 15:07:19
+@@ -3,7 +3,7 @@
+ import (
+ 	"testing"
+ 
+-	"github.com/komari-monitor/komari/utils/oauth/factory"
++	"github.com/hanxianzhai/komari/utils/oauth/factory"
+ )
+ 
+ // Test function
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/oauth/generic/generic.go komari-all/komari/utils/oauth/generic/generic.go
+--- code/komari/utils/oauth/generic/generic.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/oauth/generic/generic.go	2025-11-08 15:07:19
+@@ -9,8 +9,8 @@
+ 	"time"
+ 
+ 	"github.com/gin-gonic/gin"
+-	"github.com/komari-monitor/komari/utils"
+-	"github.com/komari-monitor/komari/utils/oauth/factory"
++	"github.com/hanxianzhai/komari/utils"
++	"github.com/hanxianzhai/komari/utils/oauth/factory"
+ 	"github.com/patrickmn/go-cache"
+ )
+ 
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/oauth/generic/meta.go komari-all/komari/utils/oauth/generic/meta.go
+--- code/komari/utils/oauth/generic/meta.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/oauth/generic/meta.go	2025-11-08 15:07:19
+@@ -1,7 +1,7 @@
+ package generic
+ 
+ import (
+-	"github.com/komari-monitor/komari/utils/oauth/factory"
++	"github.com/hanxianzhai/komari/utils/oauth/factory"
+ 	"github.com/patrickmn/go-cache"
+ )
+ 
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/oauth/github/github.go komari-all/komari/utils/oauth/github/github.go
+--- code/komari/utils/oauth/github/github.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/oauth/github/github.go	2025-11-08 15:07:19
+@@ -8,8 +8,8 @@
+ 	"time"
+ 
+ 	"github.com/gin-gonic/gin"
+-	"github.com/komari-monitor/komari/utils"
+-	"github.com/komari-monitor/komari/utils/oauth/factory"
++	"github.com/hanxianzhai/komari/utils"
++	"github.com/hanxianzhai/komari/utils/oauth/factory"
+ 	"github.com/patrickmn/go-cache"
+ )
+ 
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/oauth/github/meta.go komari-all/komari/utils/oauth/github/meta.go
+--- code/komari/utils/oauth/github/meta.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/oauth/github/meta.go	2025-11-08 15:07:19
+@@ -1,7 +1,7 @@
+ package github
+ 
+ import (
+-	"github.com/komari-monitor/komari/utils/oauth/factory"
++	"github.com/hanxianzhai/komari/utils/oauth/factory"
+ 	"github.com/patrickmn/go-cache"
+ )
+ 
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/oauth/oauth.go komari-all/komari/utils/oauth/oauth.go
+--- code/komari/utils/oauth/oauth.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/oauth/oauth.go	2025-11-08 15:07:19
+@@ -6,10 +6,10 @@
+ 	"log"
+ 	"sync"
+ 
+-	"github.com/komari-monitor/komari/database"
+-	"github.com/komari-monitor/komari/database/config"
+-	"github.com/komari-monitor/komari/database/models"
+-	"github.com/komari-monitor/komari/utils/oauth/factory"
++	"github.com/hanxianzhai/komari/database"
++	"github.com/hanxianzhai/komari/database/config"
++	"github.com/hanxianzhai/komari/database/models"
++	"github.com/hanxianzhai/komari/utils/oauth/factory"
+ )
+ 
+ var (
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/oauth/qq/meta.go komari-all/komari/utils/oauth/qq/meta.go
+--- code/komari/utils/oauth/qq/meta.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/oauth/qq/meta.go	2025-11-08 15:07:19
+@@ -1,7 +1,7 @@
+ package qq
+ 
+ import (
+-	"github.com/komari-monitor/komari/utils/oauth/factory"
++	"github.com/hanxianzhai/komari/utils/oauth/factory"
+ 	"github.com/patrickmn/go-cache"
+ )
+ 
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/oauth/qq/qq.go komari-all/komari/utils/oauth/qq/qq.go
+--- code/komari/utils/oauth/qq/qq.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/oauth/qq/qq.go	2025-11-08 15:07:19
+@@ -9,8 +9,8 @@
+ 	"time"
+ 
+ 	"github.com/gin-gonic/gin"
+-	"github.com/komari-monitor/komari/utils"
+-	"github.com/komari-monitor/komari/utils/oauth/factory"
++	"github.com/hanxianzhai/komari/utils"
++	"github.com/hanxianzhai/komari/utils/oauth/factory"
+ 	"github.com/patrickmn/go-cache"
+ )
+ 
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/pingSchedule.go komari-all/komari/utils/pingSchedule.go
+--- code/komari/utils/pingSchedule.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/pingSchedule.go	2025-11-08 15:07:19
+@@ -5,8 +5,8 @@
+ 	"sync"
+ 	"time"
+ 
+-	"github.com/komari-monitor/komari/database/models"
+-	"github.com/komari-monitor/komari/ws"
++	"github.com/hanxianzhai/komari/database/models"
++	"github.com/hanxianzhai/komari/ws"
+ )
+ 
+ // PingTaskManager 管理定时器和任务
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/renewal/renewal.go komari-all/komari/utils/renewal/renewal.go
+--- code/komari/utils/renewal/renewal.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/renewal/renewal.go	2025-11-08 15:07:19
+@@ -4,12 +4,12 @@
+ 	"fmt"
+ 	"time"
+ 
+-	"github.com/komari-monitor/komari/database/auditlog"
+-	"github.com/komari-monitor/komari/database/clients"
+-	"github.com/komari-monitor/komari/database/models"
+-	messageevent "github.com/komari-monitor/komari/database/models/messageEvent"
+-	"github.com/komari-monitor/komari/utils/messageSender"
+-	"github.com/komari-monitor/komari/ws"
++	"github.com/hanxianzhai/komari/database/auditlog"
++	"github.com/hanxianzhai/komari/database/clients"
++	"github.com/hanxianzhai/komari/database/models"
++	messageevent "github.com/hanxianzhai/komari/database/models/messageEvent"
++	"github.com/hanxianzhai/komari/utils/messageSender"
++	"github.com/hanxianzhai/komari/ws"
+ )
+ 
+ func CheckAndAutoRenewal(client models.Client) {
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/rpc/context.go komari-all/komari/utils/rpc/context.go
+--- code/komari/utils/rpc/context.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/rpc/context.go	2025-11-08 15:07:19
+@@ -7,7 +7,7 @@
+ import (
+ 	"context"
+ 
+-	"github.com/komari-monitor/komari/database/models"
++	"github.com/hanxianzhai/komari/database/models"
+ )
+ 
+ // ContextMeta 保存一次 RPC 调用可用的鉴权/身份元数据。
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/utils/utils.go komari-all/komari/utils/utils.go
+--- code/komari/utils/utils.go	2025-11-08 15:05:28
++++ komari-all/komari/utils/utils.go	2025-11-08 15:07:19
+@@ -5,8 +5,8 @@
+ 	"strings"
+ 	"time"
+ 
+-	"github.com/komari-monitor/komari/common"
+-	"github.com/komari-monitor/komari/database/models"
++	"github.com/hanxianzhai/komari/common"
++	"github.com/hanxianzhai/komari/database/models"
+ )
+ 
+ // AverageReport 根据 topPercentage 参数计算报告的平均值。
+diff --exclude=readme.* --exclude=README.* --exclude=LICENSE --exclude=.git* -Naurw code/komari/ws/existingConnection.go komari-all/komari/ws/existingConnection.go
+--- code/komari/ws/existingConnection.go	2025-11-08 15:05:28
++++ komari-all/komari/ws/existingConnection.go	2025-11-08 15:07:19
+@@ -5,7 +5,7 @@
+ 	"time"
+ 
+ 	"github.com/gorilla/websocket"
+-	"github.com/komari-monitor/komari/common"
++	"github.com/hanxianzhai/komari/common"
+ )
+ 
+ var (

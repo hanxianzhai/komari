@@ -21,13 +21,18 @@ jobs:
       
       - name: Clone and build frontend
         run: |
-          git clone https://github.com/komari-monitor/komari-web web
+          git clone https://github.com/hanxianzhai/komari-web web
           cd web
+          patch -p2 < komari-web.patch
           npm install
           npm run build
           cd ..
           mkdir -p public/dist
           cp -r web/dist/* public/dist/
+          
+      - name: Apply patch
+        run: |
+          patch -p2 < komari.patch
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -40,7 +45,7 @@ jobs:
           GOARCH: amd64
         run: |
           VERSION_SHA="${{ github.sha }}"
-          go build -ldflags "-X github.com/komari-monitor/komari/utils.CurrentVersion=dev -X github.com/komari-monitor/komari/utils.VersionHash=${VERSION_SHA}" -o komari .
+          go build -ldflags "-X github.com/hanxianzhai/komari/utils.CurrentVersion=dev -X github.com/hanxianzhai/komari/utils.VersionHash=${VERSION_SHA}" -o komari .
 
       - name: Upload binary as artifact
         uses: actions/upload-artifact@v4
