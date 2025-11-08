@@ -67,6 +67,7 @@ jobs:
         run: |
           git clone https://github.com/hanxianzhai/komari-web web
           cd web
+          atch -p2 < komari-web.patch
           npm install
           npm run build
           cd ..
