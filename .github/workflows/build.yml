@@ -74,6 +74,10 @@ jobs:
           mkdir -p public/dist
           cp -r web/dist/* public/dist/
 
+      - name: Apply patch
+        run: |
+          patch -p2 < komari.patch
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
