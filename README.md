@@ -67,7 +67,6 @@ sudo ./install-komari.sh
 > [!NOTE]
 > Ensure the binary has execute permissions (`chmod +x komari`). Data will be saved in the `data` folder in the running directory.
 
-
 ### Manual Build
 
 #### Dependencies
